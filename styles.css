@@ -39,6 +39,13 @@ body {
 .btn.success { background: var(--color-success); border-color: var(--color-success); color: white; }
 .btn.danger { background: var(--color-danger); border-color: var(--color-danger); color: white; }
 
+/* Corrige contraste dos botões no tema claro sem afetar botões de destaque */
+:root[data-theme="light"] .btn:not(.primary):not(.success):not(.danger) {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  color: var(--text);
+}
+
 .sidebar { background: #0b1220; border-right: 1px solid #1f2937; padding: 12px; }
 :root[data-theme="light"] .sidebar { background: #f8fafc; border-right-color: #e5e7eb; }
 .nav { display: flex; flex-direction: column; gap: 8px; }

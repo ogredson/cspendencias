@@ -33,6 +33,15 @@ async function listClientes() {
   return data ?? [];
 }
 
+async function listModulos() {
+  const cached = storage.get('modulos');
+  if (cached) return cached;
+  const supabase = getSupabase();
+  const { data } = await supabase.from('modulos').select('id, nome').order('id');
+  storage.set('modulos', data ?? [], 60 * 60 * 1000);
+  return data ?? [];
+}
+
 async function fetchPendencias(filters = {}, page = 1, limit = 20) {
   const supabase = getSupabase();
   let q = supabase.from('pendencias').select('*').order('created_at', { ascending: false });
@@ -65,7 +74,7 @@ function formHtml(clientes) {
         </div>
         <div class="col-6 field">
           <label>Módulo</label>
-          <input class="input" name="modulo_id" type="number" required />
+          <select class="input" name="modulo_id" required id="moduloSel"></select>
         </div>
       </div>
       <div class="row">
@@ -112,15 +121,10 @@ function formHtml(clientes) {
         <h4>Checklist Obrigatório</h4>
         <div class="hint">Marque todos os itens e preencha as respostas.</div>
         ${[
-          { id: 'q1', label: 'Qual a Versão do Sistema?' },
-          { id: 'q2', label: 'Qual o SubSistema?' },
-          { id: 'q3', label: 'Qual a Plataforma?' },
-          { id: 'q4', label: 'Quais etapas reproduzirão o bug?' },
+          { id: 'q0', label: 'Informe a situação, bug ou pendencia' },
+          { id: 'q4', label: 'Quais etapas para reproduzir?' },
           { id: 'q5', label: 'Com que frequência isso ocorre?' },
-          { id: 'q6', label: 'Existe alguma condição necessária?' },
-          { id: 'q7', label: 'Qual é o comportamento esperado?' },
-          { id: 'q8', label: 'O que você vê em vez disso?' },
-          { id: 'q9', label: 'Existem Informações adicionais?, se sim informe abaixo' }
+          { id: 'q9', label: 'Informações adicionais' }
         ].map((q) => `
           <div class="field">
             <label>${q.label}</label>
@@ -263,6 +267,10 @@ export async function render() {
   document.getElementById('novoBtn').addEventListener('click', async () => {
     const { openModal } = await import('./ui.js');
     const m = openModal(formHtml(clientes));
+    // Preencher opções de módulo com nomes
+    const mods = await listModulos();
+    const moduloSel = m.querySelector('#moduloSel');
+    moduloSel.innerHTML = ['<option value="">Selecione...</option>', ...mods.map(m => `<option value="${m.id}">${m.nome}</option>`)].join('');
     const form = m.querySelector('#pForm');
     const msg = m.querySelector('#pFormMsg');
     form.addEventListener('submit', async (e) => {
@@ -270,19 +278,14 @@ export async function render() {
       msg.textContent = 'Salvando...';
       const fd = new FormData(form);
       // Validar checklist obrigatório
-      const requiredChecks = ['q1','q2','q3','q4','q5','q6','q7','q8','q9'];
+      const requiredChecks = ['q0','q4','q5','q9'];
       const allChecked = requiredChecks.every(id => fd.get(`${id}_chk`) === 'on');
       if (!allChecked) { msg.textContent = 'Marque todos os itens do checklist.'; return; }
       // Montar descrição formatada com respostas
       const desc = [
-        `Versão do Sistema: ${sanitizeText(fd.get('q1_resp'))}`,
-        `SubSistema: ${sanitizeText(fd.get('q2_resp'))}`,
-        `Plataforma: ${sanitizeText(fd.get('q3_resp'))}`,
-        `Etapas para reproduzir: ${sanitizeText(fd.get('q4_resp'))}`,
+        `Situação/bug/pendência: ${sanitizeText(fd.get('q0_resp'))}`,
+        `Quais etapas para reproduzir: ${sanitizeText(fd.get('q4_resp'))}`,
         `Frequência que ocorre: ${sanitizeText(fd.get('q5_resp'))}`,
-        `Condição: ${sanitizeText(fd.get('q6_resp'))}`,
-        `Comportamento esperado: ${sanitizeText(fd.get('q7_resp'))}`,
-        `O que você vê: ${sanitizeText(fd.get('q8_resp'))}`,
         `Informações adicionais: ${sanitizeText(fd.get('q9_resp'))}`
       ].join('\n');
       const payload = {
@@ -305,8 +308,10 @@ export async function render() {
         if (triErr) throw triErr;
         // Salvar checklist obrigatório
         const checklistItems = [
-          'Versão do Sistema', 'SubSistema', 'Plataforma', 'Etapas para reproduzir',
-          'Frequência que ocorre', 'Condição', 'Comportamento esperado', 'O que você vê', 'Informações adicionais'
+          'Informe a situação, bug ou pendencia',
+          'Quais etapas para reproduzir?',
+          'Frequência que ocorre',
+          'Informações adicionais'
         ];
         const { error: chkErr } = await supabase.from('pendencia_checklists').insert(
           checklistItems.map((item, i) => ({ pendencia_id: created.id, item, checked: true, obrigatorio: true }))

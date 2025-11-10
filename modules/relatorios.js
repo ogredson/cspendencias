@@ -46,18 +46,19 @@ export async function render() {
 
   const ChartUMD = await import('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js');
   const Chart = ChartUMD.Chart;
+  const textColor = (getComputedStyle(document.documentElement).getPropertyValue('--text') || '#111827').trim();
 
   new Chart(document.getElementById('cStatus'), {
-    type: 'doughnut', data: { labels: status.map(x => x.label), datasets: [{ data: status.map(x => x.value), backgroundColor: ['#6b7280','#f59e0b','#ef4444','#3b82f6','var(--color-primary)','var(--color-success)'] }] }, options: { plugins: { legend: { labels: { color: '#e5e7eb' } } } }
+    type: 'doughnut', data: { labels: status.map(x => x.label), datasets: [{ data: status.map(x => x.value), backgroundColor: ['#6b7280','#f59e0b','#ef4444','#3b82f6','var(--color-primary)','var(--color-success)'] }] }, options: { plugins: { legend: { labels: { color: textColor } } } }
   });
 
   new Chart(document.getElementById('cPrioridade'), {
-    type: 'bar', data: { labels: prios.map(x => x.label), datasets: [{ data: prios.map(x => x.value), backgroundColor: ['#ef4444','#f59e0b','#3b82f6','#6b7280'] }] }, options: { scales: { x: { ticks: { color: '#e5e7eb' } }, y: { ticks: { color: '#e5e7eb' } } } }
+    type: 'bar', data: { labels: prios.map(x => x.label), datasets: [{ data: prios.map(x => x.value), backgroundColor: ['#ef4444','#f59e0b','#3b82f6','#6b7280'] }] }, options: { scales: { x: { ticks: { color: textColor } }, y: { ticks: { color: textColor } } } }
   });
 
   const labelsT = (tecnicos || []).map(t => t.tecnico);
   const valuesT = (tecnicos || []).map(t => t.count);
   new Chart(document.getElementById('cTecnico'), {
-    type: 'line', data: { labels: labelsT, datasets: [{ data: valuesT, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.2)', tension: 0.3 }] }, options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#e5e7eb' } }, y: { ticks: { color: '#e5e7eb' } } } }
+    type: 'line', data: { labels: labelsT, datasets: [{ data: valuesT, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.2)', tension: 0.3 }] }, options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: textColor } }, y: { ticks: { color: textColor } } } }
   });
 }
