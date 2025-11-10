@@ -3,12 +3,13 @@ import { getSupabase } from '../supabaseClient.js';
 import { debounce } from '../utils/debounce.js';
 import { sanitizeText, toDate } from '../utils/validation.js';
 import { storage } from '../utils/storage.js';
+import { session } from '../utils/session.js';
 
 function rowHtml(p) {
   return `
     <tr data-id="${p.id}">
       <td><input type="checkbox" class="sel" /></td>
-      <td>${p.id}</td>
+      <td><a href="#/pendencia?id=${p.id}" class="link">${p.id}</a></td>
       <td>${p.cliente_id ?? ''}</td>
       <td>${p.tipo}</td>
       <td>${p.tecnico}</td>
@@ -49,6 +50,7 @@ async function fetchPendencias(filters = {}, page = 1, limit = 20) {
 
 function formHtml(clientes) {
   const clienteOptions = clientes.map(c => `<option value="${c.id_cliente}">${c.nome}</option>`).join('');
+  const user = session.get();
   return `
   <div class="card">
     <h3>Nova Pendência</h3>
@@ -87,19 +89,15 @@ function formHtml(clientes) {
         </div>
         <div class="col-4 field">
           <label>Status</label>
-          <select class="input" name="status" required>
-            <option>Pendente</option>
-            <option>Em Andamento</option>
-            <option>Resolvido</option>
-            <option>Em Analise</option>
-            <option>Aguardando Teste</option>
+          <select class="input" name="status" required disabled>
+            <option selected>Triagem</option>
           </select>
         </div>
       </div>
       <div class="row">
         <div class="col-6 field">
-          <label>Técnico</label>
-          <input class="input" name="tecnico" required />
+          <label>Técnico do Relato</label>
+          <input class="input" name="tecnico" required value="${user?.nome ?? ''}" ${user ? 'readonly' : ''} />
         </div>
         <div class="col-3 field">
           <label>Data do relato</label>
@@ -110,9 +108,28 @@ function formHtml(clientes) {
           <input class="input" type="date" name="previsao_conclusao" />
         </div>
       </div>
-      <div class="field">
-        <label>Descrição</label>
-        <textarea class="input" name="descricao" required></textarea>
+      <div class="card" style="margin-top:8px">
+        <h4>Checklist Obrigatório</h4>
+        <div class="hint">Marque todos os itens e preencha as respostas.</div>
+        ${[
+          { id: 'q1', label: 'Qual a Versão do Sistema?' },
+          { id: 'q2', label: 'Qual o SubSistema?' },
+          { id: 'q3', label: 'Qual a Plataforma?' },
+          { id: 'q4', label: 'Quais etapas reproduzirão o bug?' },
+          { id: 'q5', label: 'Com que frequência isso ocorre?' },
+          { id: 'q6', label: 'Existe alguma condição necessária?' },
+          { id: 'q7', label: 'Qual é o comportamento esperado?' },
+          { id: 'q8', label: 'O que você vê em vez disso?' },
+          { id: 'q9', label: 'Existem Informações adicionais?, se sim informe abaixo' }
+        ].map((q) => `
+          <div class="field">
+            <label>${q.label}</label>
+            <textarea class="input" name="${q.id}_resp" required></textarea>
+            <label style="display:flex;gap:8px;align-items:center;margin-top:4px">
+              <input type="checkbox" name="${q.id}_chk" required /> Marcar como verificado
+            </label>
+          </div>
+        `).join('')}
       </div>
       <div class="toolbar">
         <button class="btn primary" type="submit">Salvar</button>
@@ -129,11 +146,12 @@ function filtersHtml(clientes) {
     <div class="filters">
       <select id="fStatus" class="input">
         <option value="">Status</option>
-        <option>Pendente</option>
+        <option>Triagem</option>
+        <option>Aguardando Aceite</option>
+        <option>Rejeitada</option>
         <option>Em Andamento</option>
-        <option>Resolvido</option>
-        <option>Em Analise</option>
         <option>Aguardando Teste</option>
+        <option>Resolvido</option>
       </select>
       <select id="fTipo" class="input">
         <option value="">Tipo</option>
@@ -251,21 +269,49 @@ export async function render() {
       e.preventDefault();
       msg.textContent = 'Salvando...';
       const fd = new FormData(form);
+      // Validar checklist obrigatório
+      const requiredChecks = ['q1','q2','q3','q4','q5','q6','q7','q8','q9'];
+      const allChecked = requiredChecks.every(id => fd.get(`${id}_chk`) === 'on');
+      if (!allChecked) { msg.textContent = 'Marque todos os itens do checklist.'; return; }
+      // Montar descrição formatada com respostas
+      const desc = [
+        `Versão do Sistema: ${sanitizeText(fd.get('q1_resp'))}`,
+        `SubSistema: ${sanitizeText(fd.get('q2_resp'))}`,
+        `Plataforma: ${sanitizeText(fd.get('q3_resp'))}`,
+        `Etapas para reproduzir: ${sanitizeText(fd.get('q4_resp'))}`,
+        `Frequência que ocorre: ${sanitizeText(fd.get('q5_resp'))}`,
+        `Condição: ${sanitizeText(fd.get('q6_resp'))}`,
+        `Comportamento esperado: ${sanitizeText(fd.get('q7_resp'))}`,
+        `O que você vê: ${sanitizeText(fd.get('q8_resp'))}`,
+        `Informações adicionais: ${sanitizeText(fd.get('q9_resp'))}`
+      ].join('\n');
       const payload = {
         cliente_id: Number(fd.get('cliente_id')) || null,
         modulo_id: Number(fd.get('modulo_id')),
         tipo: sanitizeText(fd.get('tipo')),
-        descricao: sanitizeText(fd.get('descricao')),
+        descricao: desc,
         tecnico: sanitizeText(fd.get('tecnico')),
         data_relato: toDate(fd.get('data_relato')),
         previsao_conclusao: toDate(fd.get('previsao_conclusao')),
         prioridade: sanitizeText(fd.get('prioridade')),
-        status: sanitizeText(fd.get('status')),
+        status: 'Triagem',
       };
       try {
         const supabase = getSupabase();
-        const { error } = await supabase.from('pendencias').insert(payload);
+        const { data: created, error } = await supabase.from('pendencias').insert(payload).select('id').single();
         if (error) throw error;
+        // Criar registro de triagem vinculando técnico do relato
+        const { error: triErr } = await supabase.from('pendencia_triagem').insert({ pendencia_id: created.id, tecnico_relato: payload.tecnico });
+        if (triErr) throw triErr;
+        // Salvar checklist obrigatório
+        const checklistItems = [
+          'Versão do Sistema', 'SubSistema', 'Plataforma', 'Etapas para reproduzir',
+          'Frequência que ocorre', 'Condição', 'Comportamento esperado', 'O que você vê', 'Informações adicionais'
+        ];
+        const { error: chkErr } = await supabase.from('pendencia_checklists').insert(
+          checklistItems.map((item, i) => ({ pendencia_id: created.id, item, checked: true, obrigatorio: true }))
+        );
+        if (chkErr) throw chkErr;
         msg.textContent = 'Salvo com sucesso';
         form.reset();
         apply();
@@ -273,33 +319,36 @@ export async function render() {
     });
   });
 
-  document.getElementById('pForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const msg = document.getElementById('pFormMsg');
-    msg.textContent = 'Salvando...';
-    const form = new FormData(e.target);
-    const payload = {
-      cliente_id: Number(form.get('cliente_id')) || null,
-      modulo_id: Number(form.get('modulo_id')),
-      tipo: sanitizeText(form.get('tipo')),
-      descricao: sanitizeText(form.get('descricao')),
-      tecnico: sanitizeText(form.get('tecnico')),
-      data_relato: toDate(form.get('data_relato')),
-      previsao_conclusao: toDate(form.get('previsao_conclusao')),
-      prioridade: sanitizeText(form.get('prioridade')),
-      status: sanitizeText(form.get('status')),
-    };
-    try {
-      const supabase = getSupabase();
-      const { error } = await supabase.from('pendencias').insert(payload);
-      if (error) throw error;
-      msg.textContent = 'Salvo com sucesso';
-      e.target.reset();
-      apply();
-    } catch (err) {
-      msg.textContent = 'Erro: ' + err.message;
-    }
-  });
+  const inlineForm = document.getElementById('pForm');
+  if (inlineForm) {
+    inlineForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('pFormMsg');
+      msg.textContent = 'Salvando...';
+      const form = new FormData(e.target);
+      const payload = {
+        cliente_id: Number(form.get('cliente_id')) || null,
+        modulo_id: Number(form.get('modulo_id')),
+        tipo: sanitizeText(form.get('tipo')),
+        descricao: sanitizeText(form.get('descricao')),
+        tecnico: sanitizeText(form.get('tecnico')),
+        data_relato: toDate(form.get('data_relato')),
+        previsao_conclusao: toDate(form.get('previsao_conclusao')),
+        prioridade: sanitizeText(form.get('prioridade')),
+        status: sanitizeText(form.get('status')),
+      };
+      try {
+        const supabase = getSupabase();
+        const { error } = await supabase.from('pendencias').insert(payload);
+        if (error) throw error;
+        msg.textContent = 'Salvo com sucesso';
+        e.target.reset();
+        apply();
+      } catch (err) {
+        msg.textContent = 'Erro: ' + err.message;
+      }
+    });
+  }
 
   document.querySelector('#pTable').addEventListener('click', async (e) => {
     const act = e.target.getAttribute('data-act');

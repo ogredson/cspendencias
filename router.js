@@ -8,10 +8,12 @@ const routes = {
   '#/modulos': async () => (await import('./modules/modulos.js')).render(),
   '#/relatorios': async () => (await import('./modules/relatorios.js')).render(),
   '#/config': async () => (await import('./modules/config.js')).render(),
+  '#/pendencia': async () => (await import('./modules/pendencia_detalhes.js')).render(),
 };
 
 function currentRoute() {
-  return location.hash || '#/dashboard';
+  const h = location.hash || '#/dashboard';
+  return h.split('?')[0];
 }
 
 async function resolveRoute() {
@@ -19,8 +21,9 @@ async function resolveRoute() {
   if (!s && currentRoute() !== '#/login') {
     return renderAuth();
   }
-  const route = routes[currentRoute()] || routes['#/dashboard'];
-  setActiveNav(currentRoute());
+  const base = currentRoute();
+  const route = routes[base] || routes['#/dashboard'];
+  setActiveNav(base);
   return route();
 }
 

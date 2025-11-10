@@ -58,11 +58,12 @@ body {
 :root[data-theme="light"] .table th, :root[data-theme="light"] .table td { border-bottom-color: #e5e7eb; }
 .table th { color: var(--muted); font-weight: 600; }
 .table .status { padding: 4px 8px; border-radius: 999px; font-size: 12px; display: inline-block; }
-.status.Pendente { background: #1f2937; color: #e5e7eb; }
-.status[aria-label="Em Andamento"] { background: #1f2937; color: #e5e7eb; }
-.status.Resolvido { background: var(--color-success); color: #032016; }
-.status[aria-label="Em Analise"] { background: var(--color-warning); color: #1b1003; }
+.status.Triagem { background: #6b7280; color: #111827; }
+.status[aria-label="Aguardando Aceite"] { background: #f59e0b; color: #1b1003; }
+.status.Rejeitada { background: #ef4444; color: #3b0a0a; }
+.status[aria-label="Em Andamento"] { background: #3b82f6; color: #04101f; }
 .status[aria-label="Aguardando Teste"] { background: var(--color-primary); color: #04101f; }
+.status.Resolvido { background: var(--color-success); color: #032016; }
 
 .form { display: grid; gap: 12px; }
 .field { display: grid; gap: 6px; }

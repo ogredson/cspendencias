@@ -7,11 +7,11 @@ export function renderAuth() {
   v.innerHTML = `
     <div class="login card">
       <div class="title">Entrar</div>
-      <div class="hint">Autenticação via clientes (nome e senha).</div>
+      <div class="hint">Autenticação via usuários (email e senha).</div>
       <form class="form" id="loginForm">
         <div class="field">
-          <label>Nome</label>
-          <input class="input" type="text" name="nome" required placeholder="Nome do cliente" />
+          <label>Email</label>
+          <input class="input" type="email" name="email" required placeholder="email@empresa.com" />
         </div>
         <div class="field">
           <label>Senha</label>
@@ -28,21 +28,22 @@ export function renderAuth() {
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const form = new FormData(e.target);
-    const nome = String(form.get('nome')).trim();
+    const email = String(form.get('email')).trim();
     const senha = String(form.get('senha')).trim();
     const supabase = getSupabase();
     const msg = document.getElementById('loginMsg');
     msg.textContent = 'Autenticando...';
     try {
       const { data, error } = await supabase
-        .from('clientes')
-        .select('id_cliente, nome, senha')
-        .eq('nome', nome)
+        .from('usuarios')
+        .select('id, nome, email, funcao, ativo')
+        .eq('email', email)
         .eq('senha', senha)
+        .eq('ativo', true)
         .maybeSingle();
       if (error) throw error;
-      if (!data) { msg.textContent = 'Nome ou senha inválidos.'; return; }
-      session.set({ cliente_id: data.id_cliente, nome: data.nome });
+      if (!data) { msg.textContent = 'Email ou senha inválidos, ou usuário inativo.'; return; }
+      session.set({ usuario_id: data.id, nome: data.nome, email: data.email, funcao: data.funcao });
       location.hash = '#/dashboard';
     } catch (err) {
       msg.textContent = 'Erro: ' + err.message;

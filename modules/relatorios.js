@@ -3,7 +3,7 @@ import { getSupabase } from '../supabaseClient.js';
 
 async function chartDataStatus() {
   const supabase = getSupabase();
-  const statuses = ['Pendente','Em Andamento','Resolvido','Em Analise','Aguardando Teste'];
+  const statuses = ['Triagem','Aguardando Aceite','Rejeitada','Em Andamento','Aguardando Teste','Resolvido'];
   const results = await Promise.all(statuses.map(s => supabase.from('pendencias').select('*', { count: 'exact', head: true }).eq('status', s)));
   return statuses.map((s, i) => ({ label: s, value: results[i].count ?? 0 }));
 }
@@ -48,7 +48,7 @@ export async function render() {
   const Chart = ChartUMD.Chart;
 
   new Chart(document.getElementById('cStatus'), {
-    type: 'doughnut', data: { labels: status.map(x => x.label), datasets: [{ data: status.map(x => x.value), backgroundColor: ['#6b7280','#3b82f6','#10b981','#f59e0b','#ef4444'] }] }, options: { plugins: { legend: { labels: { color: '#e5e7eb' } } } }
+    type: 'doughnut', data: { labels: status.map(x => x.label), datasets: [{ data: status.map(x => x.value), backgroundColor: ['#6b7280','#f59e0b','#ef4444','#3b82f6','var(--color-primary)','var(--color-success)'] }] }, options: { plugins: { legend: { labels: { color: '#e5e7eb' } } } }
   });
 
   new Chart(document.getElementById('cPrioridade'), {
