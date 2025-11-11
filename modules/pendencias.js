@@ -144,7 +144,7 @@ function formHtml(clientes) {
           <input class="input" name="frequencia" />
         </div>
         <div class="field">
-          <label>Informações: Detalhes adicionais (prints, logs, etc.)</label>
+          <label>Informações: Detalhes adicionais (Versao do sistema, Plataformas: Windows/Linux, Banco de dados etc.)</label>
           <textarea class="input" name="informacoes_adicionais"></textarea>
         </div>
       </div>
@@ -182,7 +182,7 @@ function formHtml(clientes) {
           <textarea class="input" name="impacto"></textarea>
         </div>
         <div class="field">
-          <label>Informações: Requisitos específicos</label>
+          <label>Informações: Requisitos específicos (Versao a atualizar (de/para), Windows/Linux, Banco de dados etc) </label>
           <textarea class="input" name="requisitos_especificos"></textarea>
         </div>
       </div>
