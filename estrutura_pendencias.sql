@@ -93,15 +93,14 @@ create table public.modulos (
   constraint modulos_nome_key unique (nome)
 ) TABLESPACE pg_default;
 
--- Tabela de checklist obrigatório
-CREATE TABLE public.pendencia_checklists (
-  id BIGSERIAL PRIMARY KEY,
-  pendencia_id VARCHAR(20) NOT NULL REFERENCES public.pendencias(id) ON DELETE CASCADE,
-  item VARCHAR(200) NOT NULL,
-  checked BOOLEAN DEFAULT FALSE,
-  obrigatorio BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+ALTER TABLE public.pendencias 
+ADD COLUMN situacao TEXT,
+ADD COLUMN etapas_reproducao TEXT,
+ADD COLUMN frequencia TEXT,
+ADD COLUMN informacoes_adicionais TEXT,
+ADD COLUMN escopo TEXT, -- Para implantação/atualização
+ADD COLUMN objetivo TEXT, -- Para implantação/atualização
+ADD COLUMN recursos_necessarios TEXT; -- Para implantação/atualização
 
 -- Tabela de histórico de auditoria
 CREATE TABLE public.pendencia_historicos (

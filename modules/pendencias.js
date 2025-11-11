@@ -82,7 +82,7 @@ function formHtml(clientes) {
           <label>Tipo</label>
           <select class="input" name="tipo" required>
             <option>Programação</option>
-            <option>Suporte</option>
+            <option selected>Suporte</option>
             <option>Implantação</option>
             <option>Atualizacao</option>
           </select>
@@ -92,7 +92,7 @@ function formHtml(clientes) {
           <select class="input" name="prioridade" required>
             <option>Critica</option>
             <option>Alta</option>
-            <option>Media</option>
+            <option selected>Media</option>
             <option>Baixa</option>
           </select>
         </div>
@@ -106,7 +106,7 @@ function formHtml(clientes) {
       <div class="row">
         <div class="col-6 field">
           <label>Técnico do Relato</label>
-          <input class="input" name="tecnico" required value="${user?.nome ?? ''}" ${user ? 'readonly' : ''} />
+          <select class="input" name="tecnico" required id="tecnicoSel"></select>
         </div>
         <div class="col-3 field">
           <label>Data do relato</label>
@@ -117,23 +117,74 @@ function formHtml(clientes) {
           <input class="input" type="date" name="previsao_conclusao" />
         </div>
       </div>
-      <div class="card" style="margin-top:8px">
-        <h4>Checklist Obrigatório</h4>
-        <div class="hint">Marque todos os itens e preencha as respostas.</div>
-        ${[
-          { id: 'q0', label: 'Informe a situação, bug ou pendencia' },
-          { id: 'q4', label: 'Quais etapas para reproduzir?' },
-          { id: 'q5', label: 'Com que frequência isso ocorre?' },
-          { id: 'q9', label: 'Informações adicionais' }
-        ].map((q) => `
-          <div class="field">
-            <label>${q.label}</label>
-            <textarea class="input" name="${q.id}_resp" required></textarea>
-            <label style="display:flex;gap:8px;align-items:center;margin-top:4px">
-              <input type="checkbox" name="${q.id}_chk" required /> Marcar como verificado
-            </label>
-          </div>
-        `).join('')}
+      <div class="row">
+        <div class="col-12 field">
+          <label>Informe a pendência ou situação:</label>
+          <input class="input" name="descricao" required />
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-12 field">
+          <label>Link do Trello (URL do card)</label>
+          <input class="input" type="url" name="link_trello" placeholder="https://trello.com/c/..." />
+        </div>
+      </div>
+      <div class="card" id="grpPS" style="margin-top:8px">
+        <h4>📋 Programação & Suporte</h4>
+        <div class="field">
+          <label>Situação: Informe o problema ou bug</label>
+          <textarea class="input" name="situacao"></textarea>
+        </div>
+        <div class="field">
+          <label>Etapas: Como reproduzir o problema?</label>
+          <textarea class="input" name="etapas_reproducao"></textarea>
+        </div>
+        <div class="field">
+          <label>Frequência: Com que frequência ocorre?</label>
+          <input class="input" name="frequencia" />
+        </div>
+        <div class="field">
+          <label>Informações: Detalhes adicionais (prints, logs, etc.)</label>
+          <textarea class="input" name="informacoes_adicionais"></textarea>
+        </div>
+      </div>
+      <div class="card" id="grpImpl" style="margin-top:8px">
+        <h4>🚀 Implantação</h4>
+        <div class="field">
+          <label>Escopo: Qual o escopo da implantação?</label>
+          <textarea class="input" name="escopo"></textarea>
+        </div>
+        <div class="field">
+          <label>Objetivo: Qual resultado esperado?</label>
+          <textarea class="input" name="objetivo"></textarea>
+        </div>
+        <div class="field">
+          <label>Recursos: Quais recursos são necessários?</label>
+          <textarea class="input" name="recursos_necessarios"></textarea>
+        </div>
+        <div class="field">
+          <label>Informações: Observações importantes</label>
+          <textarea class="input" name="informacoes_implantacao"></textarea>
+        </div>
+      </div>
+      <div class="card" id="grpAtual" style="margin-top:8px">
+        <h4>🔄 Atualização</h4>
+        <div class="field">
+          <label>Escopo: O que será atualizado?</label>
+          <textarea class="input" name="escopo_atual"></textarea>
+        </div>
+        <div class="field">
+          <label>Motivação: Por que esta atualização?</label>
+          <textarea class="input" name="motivacao"></textarea>
+        </div>
+        <div class="field">
+          <label>Impacto: Qual o impacto nos usuários?</label>
+          <textarea class="input" name="impacto"></textarea>
+        </div>
+        <div class="field">
+          <label>Informações: Requisitos específicos</label>
+          <textarea class="input" name="requisitos_especificos"></textarea>
+        </div>
       </div>
       <div class="toolbar">
         <button class="btn primary" type="submit">Salvar</button>
@@ -271,28 +322,102 @@ export async function render() {
     const mods = await listModulos();
     const moduloSel = m.querySelector('#moduloSel');
     moduloSel.innerHTML = ['<option value="">Selecione...</option>', ...mods.map(m => `<option value="${m.id}">${m.nome}</option>`)].join('');
+    // Preencher técnicos com base na tabela usuarios
+    const supabaseUsers = getSupabase();
+    const { data: usuarios } = await supabaseUsers.from('usuarios').select('nome').eq('ativo', true).order('nome');
+    const tecnicoSel = m.querySelector('#tecnicoSel');
+    const currentUser = session.get();
+    tecnicoSel.innerHTML = ['<option value="">Selecione...</option>', ...(usuarios ?? []).map(u => `<option value="${u.nome}">${u.nome}</option>`)].join('');
+    if (currentUser?.nome) {
+      const target = String(currentUser.nome).trim().toLowerCase();
+      let matched = false;
+      Array.from(tecnicoSel.options).forEach(opt => {
+        if (String(opt.value).trim().toLowerCase() === target) {
+          tecnicoSel.value = opt.value;
+          matched = true;
+        }
+      });
+      if (!matched && target.length) {
+        const opt = document.createElement('option');
+        opt.value = currentUser.nome;
+        opt.textContent = currentUser.nome;
+        tecnicoSel.insertBefore(opt, tecnicoSel.options[1]);
+        tecnicoSel.value = currentUser.nome;
+      }
+    }
+    // padrões de tipo e prioridade
+    const tipoSelDefault = m.querySelector('select[name="tipo"]');
+    const prioridadeSelDefault = m.querySelector('select[name="prioridade"]');
+    if (tipoSelDefault) tipoSelDefault.value = 'Suporte';
+    if (prioridadeSelDefault) prioridadeSelDefault.value = 'Media';
+    // comportamento adaptativo por tipo
+    const tipoSel = m.querySelector('select[name="tipo"]');
+    const grpPS = m.querySelector('#grpPS');
+    const grpImpl = m.querySelector('#grpImpl');
+    const grpAtual = m.querySelector('#grpAtual');
+    const updateGroups = () => {
+      const t = tipoSel.value;
+      grpPS.style.display = (t === 'Programação' || t === 'Suporte') ? 'block' : 'none';
+      grpImpl.style.display = (t === 'Implantação') ? 'block' : 'none';
+      grpAtual.style.display = (t === 'Atualizacao') ? 'block' : 'none';
+      // required flags
+      const setReq = (names, required) => names.forEach(n => {
+        const el = m.querySelector(`[name="${n}"]`);
+        if (el) el.required = required;
+      });
+      // base: titulo sempre obrigatório
+      setReq(['descricao'], true);
+      // reset all specifics
+      setReq(['situacao','etapas_reproducao','frequencia','informacoes_adicionais','escopo','objetivo','recursos_necessarios','informacoes_implantacao','escopo_atual','motivacao','impacto','requisitos_especificos'], false);
+      if (t === 'Programação' || t === 'Suporte') {
+        setReq(['situacao','etapas_reproducao','frequencia'], true);
+      } else if (t === 'Implantação') {
+        setReq(['escopo','objetivo'], true);
+      } else if (t === 'Atualizacao') {
+        setReq(['escopo_atual','motivacao','impacto'], true);
+      }
+    };
+    tipoSel.addEventListener('change', updateGroups);
+    updateGroups();
+    // Data do relato: default hoje (YYYY-MM-DD)
+    const dr = m.querySelector('input[name="data_relato"]');
+    if (dr) {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      dr.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    }
     const form = m.querySelector('#pForm');
     const msg = m.querySelector('#pFormMsg');
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       msg.textContent = 'Salvando...';
       const fd = new FormData(form);
-      // Validar checklist obrigatório
-      const requiredChecks = ['q0','q4','q5','q9'];
-      const allChecked = requiredChecks.every(id => fd.get(`${id}_chk`) === 'on');
-      if (!allChecked) { msg.textContent = 'Marque todos os itens do checklist.'; return; }
-      // Montar descrição formatada com respostas
-      const desc = [
-        `Situação/bug/pendência: ${sanitizeText(fd.get('q0_resp'))}`,
-        `Quais etapas para reproduzir: ${sanitizeText(fd.get('q4_resp'))}`,
-        `Frequência que ocorre: ${sanitizeText(fd.get('q5_resp'))}`,
-        `Informações adicionais: ${sanitizeText(fd.get('q9_resp'))}`
-      ].join('\n');
+      const tipoVal = sanitizeText(fd.get('tipo'));
+      let obrig = ['descricao'];
+      if (tipoVal === 'Programação' || tipoVal === 'Suporte') {
+        obrig = obrig.concat(['situacao','etapas_reproducao','frequencia']);
+      } else if (tipoVal === 'Implantação') {
+        obrig = obrig.concat(['escopo','objetivo']);
+      } else if (tipoVal === 'Atualizacao') {
+        obrig = obrig.concat(['escopo_atual','motivacao','impacto']);
+      }
+      const faltando = obrig.filter(k => !sanitizeText(fd.get(k)));
+      if (faltando.length) { msg.textContent = 'Preencha os campos obrigatórios: ' + faltando.join(', '); return; }
       const payload = {
         cliente_id: Number(fd.get('cliente_id')) || null,
         modulo_id: Number(fd.get('modulo_id')),
         tipo: sanitizeText(fd.get('tipo')),
-        descricao: desc,
+        descricao: sanitizeText(fd.get('descricao')),
+        link_trello: sanitizeText(fd.get('link_trello')),
+        // Programação & Suporte
+        situacao: sanitizeText(fd.get('situacao')),
+        etapas_reproducao: sanitizeText(fd.get('etapas_reproducao')),
+        frequencia: sanitizeText(fd.get('frequencia')),
+        informacoes_adicionais: sanitizeText(fd.get('informacoes_adicionais')) || sanitizeText(fd.get('impacto')) || sanitizeText(fd.get('informacoes_implantacao')),
+        // Implantação
+        escopo: sanitizeText(fd.get('escopo')) || sanitizeText(fd.get('escopo_atual')),
+        objetivo: sanitizeText(fd.get('objetivo')) || sanitizeText(fd.get('motivacao')),
+        recursos_necessarios: sanitizeText(fd.get('recursos_necessarios')) || sanitizeText(fd.get('requisitos_especificos')),
         tecnico: sanitizeText(fd.get('tecnico')),
         data_relato: toDate(fd.get('data_relato')),
         previsao_conclusao: toDate(fd.get('previsao_conclusao')),
@@ -306,17 +431,6 @@ export async function render() {
         // Criar registro de triagem vinculando técnico do relato
         const { error: triErr } = await supabase.from('pendencia_triagem').insert({ pendencia_id: created.id, tecnico_relato: payload.tecnico });
         if (triErr) throw triErr;
-        // Salvar checklist obrigatório
-        const checklistItems = [
-          'Informe a situação, bug ou pendencia',
-          'Quais etapas para reproduzir?',
-          'Frequência que ocorre',
-          'Informações adicionais'
-        ];
-        const { error: chkErr } = await supabase.from('pendencia_checklists').insert(
-          checklistItems.map((item, i) => ({ pendencia_id: created.id, item, checked: true, obrigatorio: true }))
-        );
-        if (chkErr) throw chkErr;
         msg.textContent = 'Salvo com sucesso';
         form.reset();
         apply();
@@ -336,6 +450,7 @@ export async function render() {
         modulo_id: Number(form.get('modulo_id')),
         tipo: sanitizeText(form.get('tipo')),
         descricao: sanitizeText(form.get('descricao')),
+        link_trello: sanitizeText(form.get('link_trello')),
         tecnico: sanitizeText(form.get('tecnico')),
         data_relato: toDate(form.get('data_relato')),
         previsao_conclusao: toDate(form.get('previsao_conclusao')),
