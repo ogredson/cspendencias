@@ -65,6 +65,10 @@ body {
 :root[data-theme="light"] .table th, :root[data-theme="light"] .table td { border-bottom-color: #e5e7eb; }
 .table th { color: var(--muted); font-weight: 600; }
 .table .status { padding: 4px 8px; border-radius: 999px; font-size: 12px; display: inline-block; }
+.table tr.status-change { transition: background 0.2s ease; }
+.table tr.status-analise { background: rgba(59, 130, 246, 0.10); border-left: 3px solid var(--color-primary); }
+.table tr.status-resolucao { background: rgba(16, 185, 129, 0.10); border-left: 3px solid var(--color-success); }
+.table tr.status-rejeitada { background: rgba(239, 68, 68, 0.10); border-left: 3px solid var(--color-danger); }
 .status.Triagem { background: #6b7280; color: #111827; }
 .status[aria-label="Aguardando Aceite"] { background: #f59e0b; color: #1b1003; }
 .status.Rejeitada { background: #ef4444; color: #3b0a0a; }

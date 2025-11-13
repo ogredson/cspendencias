@@ -5,12 +5,14 @@ import { sanitizeText, toDate } from '../utils/validation.js';
 import { storage } from '../utils/storage.js';
 import { session } from '../utils/session.js';
 
+let clienteMap = {};
+
 function rowHtml(p) {
   return `
     <tr data-id="${p.id}">
       <td><input type="checkbox" class="sel" /></td>
       <td><a href="#/pendencia?id=${p.id}" class="link">${p.id}</a></td>
-      <td>${p.cliente_id ?? ''}</td>
+      <td>${clienteMap[p.cliente_id] ?? p.cliente_id ?? ''}</td>
       <td>${p.tipo}</td>
       <td>${p.tecnico}</td>
       <td>${p.prioridade}</td>
@@ -250,6 +252,7 @@ function gridHtml() {
 export async function render() {
   const v = viewMount();
   const clientes = await listClientes();
+  clienteMap = Object.fromEntries((clientes || []).map(c => [c.id_cliente, c.nome]));
   v.innerHTML = `
     <div class="grid">
       <div class="col-12">${filtersHtml(clientes)}</div>
@@ -481,7 +484,14 @@ export async function render() {
       apply();
     }
     if (act === 'res') {
+      // buscar status anterior para histórico
+      const { data: prev } = await supabase.from('pendencias').select('status, tecnico').eq('id', id).maybeSingle();
+      const usuario = session.get()?.nome || prev?.tecnico || '—';
       await supabase.from('pendencias').update({ status: 'Resolvido' }).eq('id', id);
+      await supabase.from('pendencia_historicos').insert({
+        pendencia_id: id, acao: 'Pendência resolvida', usuario,
+        campo_alterado: 'status', valor_anterior: prev?.status ?? null, valor_novo: 'Resolvido'
+      });
       apply();
     }
   });

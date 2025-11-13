@@ -26,6 +26,8 @@ export async function render() {
   `;
 
   const supabase = getSupabase();
+  const { data: clientes } = await supabase.from('clientes').select('id_cliente, nome');
+  const clienteMap = Object.fromEntries((clientes || []).map(c => [c.id_cliente, c.nome]));
   const total = await supabase.from('pendencias').select('*', { count: 'exact', head: true });
   const andamento = await supabase.from('pendencias').select('*', { count: 'exact', head: true }).eq('status', 'Em Andamento');
   const resolvidas = await supabase.from('pendencias').select('*', { count: 'exact', head: true }).eq('status', 'Resolvido');
@@ -46,7 +48,7 @@ export async function render() {
   tbody.innerHTML = (ultimas || []).map(row => `
     <tr>
       <td>${row.id}</td>
-      <td>${row.cliente_id ?? ''}</td>
+      <td>${clienteMap[row.cliente_id] ?? row.cliente_id ?? ''}</td>
       <td>${row.tipo}</td>
       <td>${row.tecnico}</td>
       <td><span class="status ${row.status}" aria-label="${row.status}">${row.status}</span></td>
