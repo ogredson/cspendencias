@@ -252,9 +252,11 @@ function gridHtml() {
 export async function render() {
   const v = viewMount();
   const clientes = await listClientes();
+  const user = session.get();
   clienteMap = Object.fromEntries((clientes || []).map(c => [c.id_cliente, c.nome]));
   v.innerHTML = `
     <div class="grid">
+      <div class="col-12"><div class="hint">Usuário logado: ${user?.nome ?? '—'}</div></div>
       <div class="col-12">${filtersHtml(clientes)}</div>
       <div class="col-12">${gridHtml()}</div>
     </div>

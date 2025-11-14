@@ -4,8 +4,9 @@ export function initAppShell(mount) {
       <header class="header">
         <div class="brand"><div class="logo"></div>CS Pendências</div>
         <div class="user-actions">
+          <span id="userName" style="opacity:0.85; font-size:12px; margin-right:8px"></span>
           <button class="btn" id="toggleSidebar">Menu</button>
-          <button class="btn" id="themeToggle">Tema</button>
+          <button class="btn" id="themeToggle" aria-label="Tema" title="Tema">☀️</button>
           <button class="btn" id="logoutBtn">Sair</button>
         </div>
       </header>
@@ -21,6 +22,17 @@ export function initAppShell(mount) {
       <main class="content"><div id="view"></div></main>
     </div>
   `;
+
+  import('../utils/session.js').then(({ session }) => {
+    const s = session.get();
+    const el = document.getElementById('userName');
+    if (el) el.textContent = s?.nome || '';
+  });
+
+  import('../utils/theme.js').then(({ theme }) => {
+    const btn = document.getElementById('themeToggle');
+    if (btn) btn.textContent = theme.get() === 'light' ? '☀️' : '🌙';
+  });
 
   document.getElementById('toggleSidebar').addEventListener('click', () => {
     const sb = document.getElementById('sidebar');
@@ -39,6 +51,8 @@ export function initAppShell(mount) {
     const next = theme.get() === 'light' ? 'dark' : 'light';
     theme.set(next);
     document.documentElement.setAttribute('data-theme', next);
+    const btn = document.getElementById('themeToggle');
+    if (btn) btn.textContent = next === 'light' ? '☀️' : '🌙';
   });
 }
 
