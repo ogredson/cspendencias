@@ -38,12 +38,28 @@ body {
 .btn.primary { background: var(--color-primary); border-color: var(--color-primary); color: white; }
 .btn.success { background: var(--color-success); border-color: var(--color-success); color: white; }
 .btn.danger { background: var(--color-danger); border-color: var(--color-danger); color: white; }
+.btn.warning { background: var(--color-warning); border-color: var(--color-warning); color: #1b1003; }
+.btn.test { background: #A78BFA; border-color: #A78BFA; color: #1f1633; }
 
 /* Corrige contraste dos botões no tema claro sem afetar botões de destaque */
-:root[data-theme="light"] .btn:not(.primary):not(.success):not(.danger) {
+:root[data-theme="light"] .btn:not(.primary):not(.success):not(.danger):not(.warning):not(.test) {
   background: #ffffff;
   border-color: #e5e7eb;
   color: var(--text);
+}
+
+/* Garantir cor laranja no tema claro para o botão de designar */
+:root[data-theme="light"] .btn.warning {
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: #1b1003;
+}
+
+/* Variante de testes no tema claro */
+:root[data-theme="light"] .btn.test {
+  background: #A78BFA;
+  border-color: #A78BFA;
+  color: #1f1633;
 }
 
 .sidebar { background: #0b1220; border-right: 1px solid #1f2937; padding: 12px; }
@@ -65,6 +81,7 @@ body {
 :root[data-theme="light"] .table th, :root[data-theme="light"] .table td { border-bottom-color: #e5e7eb; }
 .table th { color: var(--muted); font-weight: 600; }
 .table .status { padding: 4px 8px; border-radius: 999px; font-size: 12px; display: inline-block; }
+.table .empty { text-align: center; color: var(--muted); padding: 14px; }
 .table tr.status-change { transition: background 0.2s ease; }
 .table tr.status-analise { background: rgba(59, 130, 246, 0.10); border-left: 3px solid var(--color-primary); }
 .table tr.status-resolucao { background: rgba(16, 185, 129, 0.10); border-left: 3px solid var(--color-success); }
@@ -73,8 +90,11 @@ body {
 .status[aria-label="Aguardando Aceite"] { background: #f59e0b; color: #1b1003; }
 .status.Rejeitada { background: #ef4444; color: #3b0a0a; }
 .status[aria-label="Em Andamento"] { background: #3b82f6; color: #04101f; }
-.status[aria-label="Aguardando Teste"] { background: var(--color-primary); color: #04101f; }
+.status[aria-label="Em Teste"] { background: #A78BFA; color: #1f1633; }
 .status.Resolvido { background: var(--color-success); color: #032016; }
+/* Novos status conforme constraint atualizada */
+.status[aria-label="Em Analise"] { background: #1976D2; color: #0b1a2a; }
+.status[aria-label="Aguardando o Cliente"] { background: #fbbf24; color: #1b1003; }
 
 .form { display: grid; gap: 12px; }
 .field { display: grid; gap: 6px; }
@@ -101,4 +121,16 @@ textarea { min-height: 80px; }
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 1fr; }
   .sidebar { display: none; }
+}
+/* Column highlights for technician fields */
+.table th.col-tech-relato, .table td.col-tech-relato { background: rgba(167, 139, 250, 0.10); }
+.table th.col-tech-resp, .table td.col-tech-resp { background: rgba(59, 130, 246, 0.10); }
+:root[data-theme="light"] .table th.col-tech-relato, :root[data-theme="light"] .table td.col-tech-relato { background: rgba(167, 139, 250, 0.18); }
+:root[data-theme="light"] .table th.col-tech-resp, :root[data-theme="light"] .table td.col-tech-resp { background: rgba(59, 130, 246, 0.14); }
+
+/* Ensure test button keeps color in light theme as well */
+:root[data-theme="light"] button.btn.test {
+  background: #A78BFA;
+  border-color: #A78BFA;
+  color: #1f1633;
 }

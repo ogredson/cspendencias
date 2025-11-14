@@ -3,7 +3,7 @@ import { getSupabase } from '../supabaseClient.js';
 
 async function chartDataStatus() {
   const supabase = getSupabase();
-  const statuses = ['Triagem','Aguardando Aceite','Rejeitada','Em Andamento','Aguardando Teste','Resolvido'];
+  const statuses = ['Triagem','Aguardando Aceite','Rejeitada','Em Analise','Em Andamento','Aguardando o Cliente','Em Teste','Resolvido'];
   const results = await Promise.all(statuses.map(s => supabase.from('pendencias').select('*', { count: 'exact', head: true }).eq('status', s)));
   return statuses.map((s, i) => ({ label: s, value: results[i].count ?? 0 }));
 }
@@ -44,12 +44,12 @@ export async function render() {
     .order('count', { ascending: false })
     .limit(10);
 
-  const ChartUMD = await import('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js');
-  const Chart = ChartUMD.Chart;
+  // Usar build ESM do Chart.js para funcionar com import() em browsers
+  const Chart = (await import('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/auto/+esm')).default;
   const textColor = (getComputedStyle(document.documentElement).getPropertyValue('--text') || '#111827').trim();
 
   new Chart(document.getElementById('cStatus'), {
-    type: 'doughnut', data: { labels: status.map(x => x.label), datasets: [{ data: status.map(x => x.value), backgroundColor: ['#6b7280','#f59e0b','#ef4444','#3b82f6','var(--color-primary)','var(--color-success)'] }] }, options: { plugins: { legend: { labels: { color: textColor } } } }
+    type: 'doughnut', data: { labels: status.map(x => x.label), datasets: [{ data: status.map(x => x.value), backgroundColor: ['#6b7280','#f59e0b','#ef4444','#1976D2','#3b82f6','#fbbf24','#A78BFA','var(--color-success)'] }] }, options: { plugins: { legend: { labels: { color: textColor } } } }
   });
 
   new Chart(document.getElementById('cPrioridade'), {

@@ -86,3 +86,37 @@ export function openModal(innerHtml) {
   modal.querySelector('#closeModal').addEventListener('click', () => overlay.remove());
   return modal;
 }
+
+// Diálogo de confirmação simples com estilo consistente
+export function confirmDialog(message, { confirmText = 'Confirmar', cancelText = 'Cancelar' } = {}) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.background = 'rgba(0,0,0,0.5)';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.zIndex = '1000';
+    const modal = document.createElement('div');
+    modal.className = 'card';
+    modal.style.maxWidth = '540px';
+    modal.style.width = '96%';
+    modal.innerHTML = `
+      <div style="padding:12px;">
+        <div class="title" style="margin-bottom:8px;">Confirmação</div>
+        <div class="hint" style="margin-bottom:12px;">${message}</div>
+        <div class="toolbar" style="justify-content:flex-end; gap:8px;">
+          <button class="btn" id="cancelBtn">${cancelText}</button>
+          <button class="btn primary" id="okBtn">${confirmText}</button>
+        </div>
+      </div>
+    `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    const done = (result) => { try { document.body.removeChild(overlay); } catch {} resolve(result); };
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) done(false); });
+    modal.querySelector('#cancelBtn').addEventListener('click', () => done(false));
+    modal.querySelector('#okBtn').addEventListener('click', () => done(true));
+  });
+}

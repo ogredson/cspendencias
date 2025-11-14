@@ -1,4 +1,4 @@
-import { viewMount } from './ui.js';
+import { viewMount, confirmDialog } from './ui.js';
 import { getSupabase } from '../supabaseClient.js';
 
 export async function render() {
@@ -51,6 +51,9 @@ export async function render() {
     const act = e.target.getAttribute('data-act');
     if (act === 'del') {
       const id = e.target.closest('tr').getAttribute('data-id');
+      const nome = e.target.closest('tr').children[1]?.textContent || '';
+      const ok = await confirmDialog(`Você está prestes a excluir o módulo ${id}${nome ? ` (${nome})` : ''}. Esta ação é permanente.`);
+      if (!ok) return;
       await supabase.from('modulos').delete().eq('id', id);
       load();
     }

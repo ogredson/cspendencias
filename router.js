@@ -17,11 +17,26 @@ function currentRoute() {
 }
 
 async function resolveRoute() {
+  const base = currentRoute();
   const s = session.get();
-  if (!s && currentRoute() !== '#/login') {
+
+  // Tratar login explicitamente
+  if (base === '#/login') {
+    if (s) {
+      // Já logado: enviar para dashboard
+      location.hash = '#/dashboard';
+      return;
+    }
+    // Não logado: renderizar tela de login
     return renderAuth();
   }
-  const base = currentRoute();
+
+  // Qualquer rota sem sessão: ir para login
+  if (!s) {
+    location.hash = '#/login';
+    return renderAuth();
+  }
+
   const route = routes[base] || routes['#/dashboard'];
   setActiveNav(base);
   return route();

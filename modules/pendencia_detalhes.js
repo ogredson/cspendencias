@@ -1,4 +1,4 @@
-import { viewMount } from './ui.js';
+import { viewMount, confirmDialog } from './ui.js';
 import { getSupabase } from '../supabaseClient.js';
 import { session } from '../utils/session.js';
 import { debounce } from '../utils/debounce.js';
@@ -43,7 +43,8 @@ export async function render() {
       'Aguardando Aceite': '#FF9800',
       'Em Analise': '#1976D2',
       'Em Andamento': '#43A047',
-      'Aguardando Teste': '#8E24AA',
+      'Aguardando o Cliente': '#FBBF24',
+      'Em Teste': '#A78BFA',
       'Resolvido': '#2E7D32',
       'Rejeitada': '#E53935',
     };
@@ -67,6 +68,13 @@ export async function render() {
       const quem = tri?.tecnico_responsavel ?? histAceito?.usuario ?? '—';
       const quando = fmt(tri?.data_aceite) || fmt(histAceito?.created_at);
       return `Aceita para resolução por: ${quem}${quando ? ` • em: ${quando}` : ''}`;
+    }
+    if (s === 'Aguardando o Cliente') {
+      return 'Aguardando resposta do cliente.';
+    }
+    if (s === 'Em Teste') {
+      const quem = tri?.tecnico_responsavel ?? session.get()?.nome ?? '—';
+      return `Em validação/testes por: ${quem}`;
     }
     if (s === 'Rejeitada') {
       const quem = histRejeitada?.usuario ?? tri?.tecnico_triagem ?? '—';
@@ -188,12 +196,13 @@ export async function render() {
             <label>Técnico de Triagem</label>
             <div style="display:flex; gap:8px; align-items:center;">
               <select id="triagemSel" class="input" style="flex:1"><option value="">Selecione...</option>${triagemSel}</select>
-              <button class="btn" id="btnDesignar">Designar para triagem</button>
+              <button class="btn warning" id="btnDesignar">Designar para triagem</button>
             </div>
           </div>
           <div class="toolbar" style="margin-top:8px">
             <button class="btn primary" id="btnAnalise">Aceitar Análise</button>
             <button class="btn success" id="btnAceitar">Aceitar Resolução</button>
+            <button class="btn test" id="btnTestes">Enviar para Testes</button>
             <button class="btn danger" id="btnRejeitar">Rejeitar</button>
           </div>
         </div>
@@ -260,6 +269,8 @@ export async function render() {
       alert('Selecione o Técnico de Triagem.');
       return;
     }
+    const ok = await confirmDialog(`Você está prestes a designar a pendência ${id} para triagem de ${nome}.`);
+    if (!ok) return;
     const { error: e1 } = await supabase.from('pendencia_triagem').update({
       tecnico_triagem: nome, data_triagem: new Date().toISOString()
     }).eq('pendencia_id', id);
@@ -277,6 +288,8 @@ export async function render() {
     const selVal = document.getElementById('triagemSel').value;
     if (!selVal) { alert('Defina o Técnico de Triagem antes de aceitar análise.'); return; }
     const resp = selVal;
+    const ok = await confirmDialog(`Você está prestes a aceitar a análise da pendência ${id} por ${resp}.`);
+    if (!ok) return;
     const { error: e1 } = await supabase.from('pendencia_triagem').update({
       tecnico_triagem: tri?.tecnico_triagem || resp,
       tecnico_responsavel: resp,
@@ -298,6 +311,8 @@ export async function render() {
     const selVal = document.getElementById('triagemSel').value;
     if (!selVal) { alert('Defina o Técnico de Triagem antes de aceitar resolução.'); return; }
     const resp = selVal;
+    const ok = await confirmDialog(`Você está prestes a aceitar a resolução da pendência ${id} por ${resp}.`);
+    if (!ok) return;
     const { error: e1 } = await supabase.from('pendencia_triagem').update({
       tecnico_responsavel: resp, data_aceite: new Date().toISOString()
     }).eq('pendencia_id', id);
@@ -313,9 +328,31 @@ export async function render() {
     render();
   });
 
+  // Enviar para Testes: requer técnico selecionado; muda status para "Em Teste" e define técnico
+  document.getElementById('btnTestes').addEventListener('click', async () => {
+    const selVal = document.getElementById('triagemSel').value;
+    if (!selVal) { alert('Defina o Técnico de Triagem antes de enviar para testes.'); return; }
+    const tester = selVal;
+    const ok = await confirmDialog(`Você está prestes a enviar a pendência ${id} para testes por ${tester}.`);
+    if (!ok) return;
+    const { error: e1 } = await supabase.from('pendencias').update({ status: 'Em Teste', tecnico: tester }).eq('id', id);
+    if (e1) { alert('Erro status: ' + e1.message); return; }
+    await supabase.from('pendencia_historicos').insert({
+      pendencia_id: id,
+      acao: 'Pendência enviada para testes',
+      usuario: session.get()?.nome || tester,
+      campo_alterado: 'tecnico',
+      valor_anterior: pend?.tecnico ?? null,
+      valor_novo: tester
+    });
+    render();
+  });
+
   document.getElementById('btnRejeitar').addEventListener('click', async () => {
     const selVal = document.getElementById('triagemSel').value;
     if (!selVal) { alert('Defina o Técnico de Triagem antes de rejeitar.'); return; }
+    const ok = await confirmDialog(`Você está prestes a rejeitar a pendência ${id}.`);
+    if (!ok) return;
     const motivo = prompt('Motivo da rejeição:');
     if (!motivo) return;
     const { error: e1 } = await supabase.from('pendencia_triagem').update({
@@ -374,23 +411,32 @@ export async function render() {
   // Render inicial do histórico
   renderHistTable();
 
-  // Cálculo de durações por status e render do gráfico
-  const findActionTs = (needle) => histAsc.find(h => String(h.acao || '').toLowerCase().includes(needle))?.created_at || null;
+  // Cálculo de durações por status (preciso) usando eventos de "Status alterado"
   const relatoTs = pend?.data_relato || histAsc[0]?.created_at || null;
-  const designadoTs = tri?.data_triagem || findActionTs('designado para triagem');
-  const aceiteAnaliseTs = tri?.data_aceite || findActionTs('aceita para análise');
-  const aceitaResolucaoTs = findActionTs('aceita para resolução');
-  const rejeicaoTs = tri?.data_rejeicao || findActionTs('rejeitad');
-  const resolvidaTs = findActionTs('resolvid');
+  const resolvidaTs = histAsc.find(h => String(h.acao || '').toLowerCase().includes('resolvid'))?.created_at || null;
   const nowTs = new Date().toISOString();
   const toMs = (a, b) => (a && b) ? Math.max(0, new Date(b) - new Date(a)) : 0;
-  const durations = {
-    'Triagem': toMs(relatoTs, designadoTs),
-    'Aguardando Aceite': toMs(designadoTs, aceiteAnaliseTs),
-    'Em Analise': toMs(aceiteAnaliseTs, aceitaResolucaoTs),
-    'Em Andamento': rejeicaoTs ? 0 : toMs(aceitaResolucaoTs || aceiteAnaliseTs, resolvidaTs || nowTs),
-    'Rejeitada': rejeicaoTs ? toMs(designadoTs || aceiteAnaliseTs || relatoTs, rejeicaoTs) : 0,
-  };
+  const statusEvents = histAsc.filter(h => (
+    String(h.campo_alterado || '').toLowerCase() === 'status' ||
+    String(h.acao || '').toLowerCase().includes('status alterado')
+  ));
+  const statusKeys = ['Triagem','Aguardando Aceite','Em Analise','Em Andamento','Aguardando o Cliente','Em Teste','Rejeitada'];
+  const durations = Object.fromEntries(statusKeys.map(k => [k, 0]));
+  let currentStatus = statusEvents[0]?.valor_anterior || statusEvents[0]?.valor_novo || pend?.status || 'Triagem';
+  let prevTs = relatoTs || statusEvents[0]?.created_at || histAsc[0]?.created_at || nowTs;
+  for (const e of statusEvents) {
+    const ts = e.created_at;
+    if (currentStatus && durations[currentStatus] !== undefined) {
+      durations[currentStatus] += toMs(prevTs, ts);
+    }
+    currentStatus = e.valor_novo || currentStatus;
+    prevTs = ts;
+  }
+  // finaliza segmento atual até a resolução (ou agora). Se rejeitada, termina no evento.
+  const endTs = resolvidaTs || nowTs;
+  if (currentStatus && durations[currentStatus] !== undefined) {
+    durations[currentStatus] += toMs(prevTs, endTs);
+  }
   const humanize = (ms) => {
     const sec = Math.round(ms / 1000);
     const min = Math.round(sec / 60);
@@ -407,11 +453,13 @@ export async function render() {
     'Aguardando Aceite': getStatusColor('Aguardando Aceite'),
     'Em Analise': getStatusColor('Em Analise'),
     'Em Andamento': getStatusColor('Em Andamento'),
+    'Aguardando o Cliente': getStatusColor('Aguardando o Cliente'),
+    'Em Teste': getStatusColor('Em Teste'),
     'Rejeitada': getStatusColor('Rejeitada'),
   };
   const barEl = document.getElementById('timelineBar');
   if (barEl) {
-    barEl.innerHTML = ['Triagem','Aguardando Aceite','Em Analise','Em Andamento','Rejeitada']
+    barEl.innerHTML = ['Triagem','Aguardando Aceite','Em Analise','Em Andamento','Aguardando o Cliente','Em Teste','Rejeitada']
       .map(k => {
         const ms = durations[k];
         const pct = Math.max(0.5, Math.round((ms / totalMs) * 100));
@@ -420,7 +468,7 @@ export async function render() {
   }
   const legendEl = document.getElementById('timelineLegend');
   if (legendEl) {
-    legendEl.innerHTML = ['Triagem','Aguardando Aceite','Em Analise','Em Andamento','Rejeitada']
+    legendEl.innerHTML = ['Triagem','Aguardando Aceite','Em Analise','Em Andamento','Aguardando o Cliente','Em Teste','Rejeitada']
       .map(k => `<div style="display:flex; align-items:center; gap:6px"><span style="display:inline-block; width:12px; height:12px; background:${segColors[k]}; border-radius:2px"></span><span>${k}: ${humanize(durations[k])}</span></div>`)
       .join('');
   }

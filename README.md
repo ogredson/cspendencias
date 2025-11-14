@@ -30,7 +30,7 @@ Estes valores devem ser usados exatamente como definidos na base (CHECK `pendenc
 - Rejeitada
 - Em Analise
 - Em Andamento
-- Aguardando Teste
+- Em Teste
 - Resolvido
 
 ### Convenções
@@ -49,7 +49,7 @@ Estes valores devem ser usados exatamente como definidos na base (CHECK `pendenc
 4. Aceitar Resolução
    - Botão “Aceitar Resolução”: define `tecnico_responsavel`, grava `data_aceite`, muda para `Em Andamento` e registra histórico “Pendência aceita para resolução”.
 5. Teste
-   - Opcionalmente alterar para `Aguardando Teste` quando a solução entra em validação de usuário/QA.
+   - Opcionalmente alterar para `Em Teste` quando a solução entra em validação de usuário/QA.
 6. Conclusão
    - “Resolvido” na listagem atualiza para `Resolvido` e registra histórico “Pendência resolvida”.
    - “Rejeitar” atualiza para `Rejeitada`, grava motivo e registra histórico “Pendência rejeitada”.

@@ -1,4 +1,4 @@
-import { viewMount } from './ui.js';
+import { viewMount, confirmDialog } from './ui.js';
 import { getSupabase } from '../supabaseClient.js';
 import { debounce } from '../utils/debounce.js';
 import { sanitizeText, toDate } from '../utils/validation.js';
@@ -8,13 +8,15 @@ import { session } from '../utils/session.js';
 let clienteMap = {};
 
 function rowHtml(p) {
+  const triRelato = Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_relato ?? '') : (p.pendencia_triagem?.tecnico_relato ?? '');
   return `
     <tr data-id="${p.id}">
       <td><input type="checkbox" class="sel" /></td>
       <td><a href="#/pendencia?id=${p.id}" class="link">${p.id}</a></td>
       <td>${clienteMap[p.cliente_id] ?? p.cliente_id ?? ''}</td>
       <td>${p.tipo}</td>
-      <td>${p.tecnico}</td>
+      <td class="col-tech-relato">${triRelato ?? ''}</td>
+      <td class="col-tech-resp">${p.tecnico}</td>
       <td>${p.prioridade}</td>
       <td><span class="status ${p.status}" aria-label="${p.status}">${p.status}</span></td>
       <td>${p.data_relato ?? ''}</td>
@@ -46,7 +48,10 @@ async function listModulos() {
 
 async function fetchPendencias(filters = {}, page = 1, limit = 20) {
   const supabase = getSupabase();
-  let q = supabase.from('pendencias').select('*').order('created_at', { ascending: false });
+  let q = supabase
+    .from('pendencias')
+    .select('*, pendencia_triagem(tecnico_relato, tecnico_responsavel)')
+    .order('created_at', { ascending: false });
   if (filters.status) q = q.eq('status', filters.status);
   if (filters.tipo) q = q.eq('tipo', filters.tipo);
   if (filters.cliente_id) q = q.eq('cliente_id', filters.cliente_id);
@@ -55,7 +60,9 @@ async function fetchPendencias(filters = {}, page = 1, limit = 20) {
   if (filters.data_fim) q = q.lte('data_relato', filters.data_fim);
   const from = (page - 1) * limit;
   const to = from + limit - 1;
-  const { data, error, count } = await q.range(from, to).select('*', { count: 'exact' });
+  const { data, error, count } = await q
+    .range(from, to)
+    .select('*, pendencia_triagem(tecnico_relato, tecnico_responsavel)', { count: 'exact' });
   return { data: data ?? [], error, count: count ?? 0 };
 }
 
@@ -196,8 +203,9 @@ function formHtml(clientes) {
   </div>`;
 }
 
-function filtersHtml(clientes) {
+function filtersHtml(clientes, usuarios = []) {
   const clienteOptions = ['<option value="">Todos</option>', ...clientes.map(c => `<option value="${c.id_cliente}">${c.nome}</option>`)].join('');
+  const tecnicoOptions = ['<option value="">Técnico</option>', ...usuarios.map(u => `<option value="${u.nome}">${u.nome}</option>`)].join('');
   return `
   <div class="card">
     <div class="filters">
@@ -205,10 +213,12 @@ function filtersHtml(clientes) {
         <option value="">Status</option>
         <option>Triagem</option>
         <option>Aguardando Aceite</option>
+        <option>Em Analise</option>
         <option>Rejeitada</option>
-        <option>Em Andamento</option>
-        <option>Aguardando Teste</option>
-        <option>Resolvido</option>
+       <option>Aguardando o Cliente</option>
+       <option>Em Andamento</option>
+        <option>Em Teste</option>
+       <option>Resolvido</option>
       </select>
       <select id="fTipo" class="input">
         <option value="">Tipo</option>
@@ -218,7 +228,7 @@ function filtersHtml(clientes) {
         <option>Atualizacao</option>
       </select>
       <select id="fCliente" class="input">${clienteOptions}</select>
-      <input id="fTecnico" class="input" placeholder="Técnico" />
+      <select id="fTecnico" class="input">${tecnicoOptions}</select>
       <input id="fDataIni" class="input" type="date" />
       <input id="fDataFim" class="input" type="date" />
     </div>
@@ -236,7 +246,7 @@ function gridHtml() {
     <table class="table" id="pTable">
       <thead><tr>
         <th><input type="checkbox" id="selAll" /></th>
-        <th>ID</th><th>Cliente</th><th>Tipo</th><th>Técnico</th><th>Prioridade</th><th>Status</th><th>Data</th><th>Ações</th>
+        <th>ID</th><th>Cliente</th><th>Tipo</th><th class="col-tech-relato">Téc. Relato</th><th class="col-tech-resp">Responsável</th><th>Prioridade</th><th>Status</th><th>Data</th><th>Ações</th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -252,12 +262,15 @@ function gridHtml() {
 export async function render() {
   const v = viewMount();
   const clientes = await listClientes();
+  // Buscar lista de usuários ativos para popular o filtro de técnico
+  const supabaseUsers = getSupabase();
+  const { data: usuarios } = await supabaseUsers.from('usuarios').select('nome').eq('ativo', true).order('nome');
   const user = session.get();
   clienteMap = Object.fromEntries((clientes || []).map(c => [c.id_cliente, c.nome]));
   v.innerHTML = `
     <div class="grid">
       <div class="col-12"><div class="hint">Usuário logado: ${user?.nome ?? '—'}</div></div>
-      <div class="col-12">${filtersHtml(clientes)}</div>
+      <div class="col-12">${filtersHtml(clientes, usuarios || [])}</div>
       <div class="col-12">${gridHtml()}</div>
     </div>
   `;
@@ -303,21 +316,24 @@ export async function render() {
     document.querySelectorAll('#pTable tbody .sel').forEach(cb => cb.checked = e.target.checked);
   });
 
+  const updateFilters = debounce(() => {
+    const filters = {
+      status: sanitizeText(document.getElementById('fStatus').value) || undefined,
+      tipo: sanitizeText(document.getElementById('fTipo').value) || undefined,
+      cliente_id: sanitizeText(document.getElementById('fCliente').value) || undefined,
+      tecnico: sanitizeText(document.getElementById('fTecnico').value) || undefined,
+      data_ini: toDate(document.getElementById('fDataIni').value) || undefined,
+      data_fim: toDate(document.getElementById('fDataFim').value) || undefined,
+    };
+    state.filters = filters;
+    state.page = 1;
+    debouncedApply();
+  }, 250);
   ['fStatus','fTipo','fCliente','fTecnico','fDataIni','fDataFim'].forEach(id => {
     const el = document.getElementById(id);
-    el.addEventListener('input', debounce(() => {
-      const filters = {
-        status: sanitizeText(document.getElementById('fStatus').value) || undefined,
-        tipo: sanitizeText(document.getElementById('fTipo').value) || undefined,
-        cliente_id: sanitizeText(document.getElementById('fCliente').value) || undefined,
-        tecnico: sanitizeText(document.getElementById('fTecnico').value) || undefined,
-        data_ini: toDate(document.getElementById('fDataIni').value) || undefined,
-        data_fim: toDate(document.getElementById('fDataFim').value) || undefined,
-      };
-      state.filters = filters;
-      state.page = 1;
-      debouncedApply();
-    }, 250));
+    if (!el) return;
+    el.addEventListener('change', updateFilters);
+    el.addEventListener('input', updateFilters);
   });
 
   document.getElementById('novoBtn').addEventListener('click', async () => {
@@ -482,10 +498,14 @@ export async function render() {
     const id = tr.getAttribute('data-id');
     const supabase = getSupabase();
     if (act === 'del') {
+      const ok = await confirmDialog(`Você está prestes a excluir a pendência ${id}. Esta ação é permanente.`);
+      if (!ok) return;
       await supabase.from('pendencias').delete().eq('id', id);
       apply();
     }
     if (act === 'res') {
+      const ok = await confirmDialog(`Você está prestes a marcar a pendência ${id} como Resolvido.`);
+      if (!ok) return;
       // buscar status anterior para histórico
       const { data: prev } = await supabase.from('pendencias').select('status, tecnico').eq('id', id).maybeSingle();
       const usuario = session.get()?.nome || prev?.tecnico || '—';

@@ -45,7 +45,7 @@ create table public.pendencias (
             'Em Andamento'::character varying,
             'Resolvido'::character varying,
             'Em Analise'::character varying,
-            'Aguardando Teste'::character varying
+            'Em Teste'::character varying
           ]
         )::text[]
       )
@@ -314,4 +314,4 @@ CREATE TRIGGER trigger_historico_triagem
   AFTER INSERT OR UPDATE ON public.pendencia_triagem
   FOR EACH ROW EXECUTE FUNCTION registrar_historico_triagem();
   
-ALTER TABLE public.usuarios ADD COLUMN senha VARCHAR(5);  
+ALTER TABLE public.usuarios ADD COLUMN senha VARCHAR(5);

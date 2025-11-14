@@ -45,7 +45,7 @@ create table public.pendencias (
             'Em Andamento'::character varying,
             'Resolvido'::character varying,
             'Em Analise'::character varying,
-            'Aguardando Teste'::character varying
+            'Em Teste'::character varying
           ]
         )::text[]
       )
