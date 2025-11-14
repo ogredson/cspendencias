@@ -75,15 +75,53 @@ export function openModal(innerHtml) {
   overlay.style.alignItems = 'center';
   overlay.style.justifyContent = 'center';
   overlay.style.zIndex = '1000';
+  overlay.setAttribute('aria-hidden', 'false');
+
   const modal = document.createElement('div');
   modal.className = 'card';
   modal.style.maxWidth = '900px';
   modal.style.width = '96%';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
   modal.innerHTML = '<div class="toolbar" style="justify-content:flex-end"><button class="btn" id="closeModal">Fechar</button></div>' + innerHtml;
+
   overlay.appendChild(modal);
+  const prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
   document.body.appendChild(overlay);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-  modal.querySelector('#closeModal').addEventListener('click', () => overlay.remove());
+
+  // Focus trap
+  const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  const getFocusable = () => Array.from(modal.querySelectorAll(focusableSelector)).filter(el => !el.disabled);
+  const focusables = getFocusable();
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const previouslyFocused = document.activeElement;
+  if (first) first.focus(); else modal.setAttribute('tabindex', '-1'), modal.focus();
+
+  const keyHandler = (e) => {
+    if (e.key === 'Escape') { close(); }
+    if (e.key === 'Tab') {
+      const f = getFocusable();
+      if (!f.length) return;
+      const firstEl = f[0];
+      const lastEl = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === firstEl) { e.preventDefault(); lastEl.focus(); }
+      else if (!e.shiftKey && document.activeElement === lastEl) { e.preventDefault(); firstEl.focus(); }
+    }
+  };
+
+  const close = () => {
+    try { document.body.removeChild(overlay); } catch {}
+    document.body.style.overflow = prevOverflow || '';
+    document.removeEventListener('keydown', keyHandler);
+    if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus();
+  };
+
+  document.addEventListener('keydown', keyHandler);
+  // Não fechar por clique no fundo; apenas pelo botão "Fechar" ou tecla Escape
+  modal.querySelector('#closeModal').addEventListener('click', () => close());
+
   return modal;
 }
 

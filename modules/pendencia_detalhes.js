@@ -2,6 +2,7 @@ import { viewMount, confirmDialog } from './ui.js';
 import { getSupabase } from '../supabaseClient.js';
 import { session } from '../utils/session.js';
 import { debounce } from '../utils/debounce.js';
+import { formatDateBr, formatDateTimeBr } from '../utils/validation.js';
 
 function getIdFromHash() {
   const qs = (location.hash.split('?')[1] || '');
@@ -29,7 +30,7 @@ export async function render() {
   const triagemSel = (usuarios || []).map(u => `<option value="${u.nome}">${u.nome}</option>`).join('');
 
   // helpers para histórico e formatação
-  const fmt = (dt) => dt ? new Date(dt).toLocaleString() : '';
+const fmt = (dt) => formatDateTimeBr(dt);
   const findByAction = (arr, needle) => (arr || []).find(h => String(h.acao || '').toLowerCase().includes(needle));
   const histDesignado = findByAction(hist, 'designado para triagem');
   const histAceito = findByAction(hist, 'aceita para resolução');
@@ -39,14 +40,14 @@ export async function render() {
   // Mapeia cores por status para a barra superior
   const getStatusColor = (s) => {
     const map = {
-      'Triagem': '#607D8B',
-      'Aguardando Aceite': '#FF9800',
-      'Em Analise': '#1976D2',
-      'Em Andamento': '#43A047',
-      'Aguardando o Cliente': '#FBBF24',
-      'Em Teste': '#A78BFA',
-      'Resolvido': '#2E7D32',
-      'Rejeitada': '#E53935',
+      'Triagem': '#6B7280',
+      'Aguardando Aceite': '#D97706',
+      'Em Analise': '#2563EB',
+      'Em Andamento': '#0EA5E9',
+      'Aguardando o Cliente': '#EAB308',
+      'Em Teste': '#9333EA',
+      'Resolvido': '#10B981',
+      'Rejeitada': '#EF4444',
     };
     return map[String(s)] || '#607D8B';
   };
@@ -122,7 +123,7 @@ export async function render() {
       const cls = isAnalise ? 'status-change status-analise' : isResolucao ? 'status-change status-resolucao' : isRejeitada ? 'status-change status-rejeitada' : '';
       return `
       <tr class="${cls}">
-        <td>${new Date(h.created_at).toLocaleString()}</td>
+        <td>${formatDateTimeBr(h.created_at)}</td>
         <td>${h.usuario ?? ''}</td>
         <td>${h.acao ?? ''}</td>
         <td>${h.campo_alterado ?? ''}</td>
@@ -184,8 +185,8 @@ export async function render() {
           <div><b>Cliente:</b> ${(clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome ?? pend?.cliente_id ?? ''}</div>
           <div><b>Tipo:</b> ${pend?.tipo}</div>
           <div><b>Técnico:</b> ${pend?.tecnico}</div>
-          <div><b>Prioridade:</b> ${pend?.prioridade}</div>
-          <div><b>Data do relato:</b> ${pend?.data_relato ?? ''}</div>
+          <div><b>Prioridade:</b> <span class="prio ${pend?.prioridade}" aria-label="${pend?.prioridade}">${pend?.prioridade}</span></div>
+          <div><b>Data do relato:</b> ${formatDateBr(pend?.data_relato)}</div>
           <div><b>Título:</b> ${pend?.descricao ?? ''}</div>
           ${pend?.link_trello ? `<div style="margin-top:8px"><a class="btn" href="${pend.link_trello}" target="_blank" rel="noopener">Abrir no Trello</a></div>` : ''}
         </div>
@@ -203,6 +204,7 @@ export async function render() {
             <button class="btn primary" id="btnAnalise">Aceitar Análise</button>
             <button class="btn success" id="btnAceitar">Aceitar Resolução</button>
             <button class="btn test" id="btnTestes">Enviar para Testes</button>
+            <button class="btn await" id="btnAguardarCliente">Aguardar Cliente</button>
             <button class="btn danger" id="btnRejeitar">Rejeitar</button>
           </div>
         </div>
@@ -366,6 +368,44 @@ export async function render() {
     await supabase.from('pendencia_historicos').insert({
       pendencia_id: id, acao: 'Pendência rejeitada', usuario: selVal,
       campo_alterado: 'motivo_rejeicao', valor_anterior: null, valor_novo: motivo
+    });
+    render();
+  });
+
+  // Aguardar Cliente: requer técnico selecionado; muda status para "Aguardando o Cliente" e define responsável
+  document.getElementById('btnAguardarCliente').addEventListener('click', async () => {
+    const selVal = document.getElementById('triagemSel').value;
+    if (!selVal) { alert('Defina o Técnico de Triagem antes de marcar como Aguardando o Cliente.'); return; }
+    const ok = await confirmDialog(`Você está prestes a marcar a pendência ${id} como 'Aguardando o Cliente' por ${selVal}.`);
+    if (!ok) return;
+    // Atualiza técnico responsável na triagem
+    const { error: e1 } = await supabase.from('pendencia_triagem').update({
+      tecnico_responsavel: selVal,
+      data_aceite: tri?.data_aceite || new Date().toISOString()
+    }).eq('pendencia_id', id);
+    if (e1) { alert('Erro responsável: ' + e1.message); return; }
+    // Atualiza status e técnico atual na pendência
+    const { error: e2 } = await supabase.from('pendencias').update({
+      status: 'Aguardando o Cliente', tecnico: selVal
+    }).eq('id', id);
+    if (e2) { alert('Erro status: ' + e2.message); return; }
+    // Histórico da mudança de responsável
+    await supabase.from('pendencia_historicos').insert({
+      pendencia_id: id,
+      acao: 'Pendência marcada para aguardar cliente',
+      usuario: session.get()?.nome || selVal,
+      campo_alterado: 'tecnico_responsavel',
+      valor_anterior: tri?.tecnico_responsavel ?? null,
+      valor_novo: selVal
+    });
+    // Histórico do status alterado
+    await supabase.from('pendencia_historicos').insert({
+      pendencia_id: id,
+      acao: 'Status alterado para Aguardando o Cliente',
+      usuario: session.get()?.nome || selVal,
+      campo_alterado: 'status',
+      valor_anterior: pend?.status ?? null,
+      valor_novo: 'Aguardando o Cliente'
     });
     render();
   });

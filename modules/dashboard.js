@@ -1,4 +1,5 @@
 import { viewMount } from './ui.js';
+import { formatDateBr } from '../utils/validation.js';
 import { getSupabase } from '../supabaseClient.js';
 import { session } from '../utils/session.js';
 
@@ -90,7 +91,7 @@ export async function render() {
         <td class="col-tech-relato">${Array.isArray(row.pendencia_triagem) ? (row.pendencia_triagem[0]?.tecnico_relato ?? '') : (row.pendencia_triagem?.tecnico_relato ?? '')}</td>
         <td class="col-tech-resp">${row.tecnico}</td>
         <td><span class="status ${row.status}" aria-label="${row.status}">${row.status}</span></td>
-        <td>${row.data_relato ?? ''}</td>
+        <td>${formatDateBr(row.data_relato)}</td>
       </tr>
     `).join('');
   }

@@ -1,11 +1,23 @@
 import { viewMount, confirmDialog } from './ui.js';
 import { getSupabase } from '../supabaseClient.js';
 import { debounce } from '../utils/debounce.js';
-import { sanitizeText, toDate } from '../utils/validation.js';
+import { sanitizeText, toDate, formatDateBr } from '../utils/validation.js';
 import { storage } from '../utils/storage.js';
 import { session } from '../utils/session.js';
 
 let clienteMap = {};
+let moduloMap = {};
+
+function daysSince(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '—';
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startOfDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = Math.floor((startOfToday - startOfDate) / (24 * 60 * 60 * 1000));
+  return diff > 0 ? String(diff) : '—';
+}
 
 function rowHtml(p) {
   const triRelato = Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_relato ?? '') : (p.pendencia_triagem?.tecnico_relato ?? '');
@@ -14,14 +26,17 @@ function rowHtml(p) {
       <td><input type="checkbox" class="sel" /></td>
       <td><a href="#/pendencia?id=${p.id}" class="link">${p.id}</a></td>
       <td>${clienteMap[p.cliente_id] ?? p.cliente_id ?? ''}</td>
+      <td>${moduloMap[p.modulo_id] ?? p.modulo_id ?? ''}</td>
       <td>${p.tipo}</td>
       <td class="col-tech-relato">${triRelato ?? ''}</td>
       <td class="col-tech-resp">${p.tecnico}</td>
-      <td>${p.prioridade}</td>
+      <td><span class="prio ${p.prioridade}" aria-label="${p.prioridade}">${p.prioridade}</span></td>
       <td><span class="status ${p.status}" aria-label="${p.status}">${p.status}</span></td>
-      <td>${p.data_relato ?? ''}</td>
+      <td>${daysSince(p.data_relato)}</td>
+      <td>${formatDateBr(p.data_relato)}</td>
       <td>
         <button class="btn success" data-act="res">Resolvido</button>
+        <button class="btn" data-act="edit">Editar</button>
         <button class="btn danger" data-act="del">Excluir</button>
       </td>
     </tr>
@@ -54,6 +69,7 @@ async function fetchPendencias(filters = {}, page = 1, limit = 20) {
     .order('created_at', { ascending: false });
   if (filters.status) q = q.eq('status', filters.status);
   if (filters.tipo) q = q.eq('tipo', filters.tipo);
+  if (filters.modulo_id) q = q.eq('modulo_id', Number(filters.modulo_id));
   if (filters.cliente_id) q = q.eq('cliente_id', filters.cliente_id);
   if (filters.tecnico) q = q.ilike('tecnico', `%${filters.tecnico}%`);
   if (filters.data_ini) q = q.gte('data_relato', filters.data_ini);
@@ -203,9 +219,10 @@ function formHtml(clientes) {
   </div>`;
 }
 
-function filtersHtml(clientes, usuarios = []) {
+function filtersHtml(clientes, usuarios = [], modulos = []) {
   const clienteOptions = ['<option value="">Todos</option>', ...clientes.map(c => `<option value="${c.id_cliente}">${c.nome}</option>`)].join('');
   const tecnicoOptions = ['<option value="">Técnico</option>', ...usuarios.map(u => `<option value="${u.nome}">${u.nome}</option>`)].join('');
+  const moduloOptions = ['<option value="">Módulo</option>', ...modulos.map(m => `<option value="${m.id}">${m.nome}</option>`)].join('');
   return `
   <div class="card">
     <div class="filters">
@@ -227,6 +244,7 @@ function filtersHtml(clientes, usuarios = []) {
         <option>Implantação</option>
         <option>Atualizacao</option>
       </select>
+      <select id="fModulo" class="input">${moduloOptions}</select>
       <select id="fCliente" class="input">${clienteOptions}</select>
       <select id="fTecnico" class="input">${tecnicoOptions}</select>
       <input id="fDataIni" class="input" type="date" />
@@ -242,11 +260,11 @@ function filtersHtml(clientes, usuarios = []) {
 
 function gridHtml() {
   return `
-  <div class="card" id="virtWrap" style="max-height:420px; overflow:auto;">
+  <div class="card" id="virtWrap" style="height:clamp(420px, 66vh, 800px); overflow:auto;">
     <table class="table" id="pTable">
       <thead><tr>
         <th><input type="checkbox" id="selAll" /></th>
-        <th>ID</th><th>Cliente</th><th>Tipo</th><th class="col-tech-relato">Téc. Relato</th><th class="col-tech-resp">Responsável</th><th>Prioridade</th><th>Status</th><th>Data</th><th>Ações</th>
+        <th>ID</th><th>Cliente</th><th>Módulo</th><th>Tipo</th><th class="col-tech-relato">Téc. Relato</th><th class="col-tech-resp">Responsável</th><th>Prioridade</th><th>Status</th><th>Dias</th><th>Data</th><th>Ações</th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -262,15 +280,17 @@ function gridHtml() {
 export async function render() {
   const v = viewMount();
   const clientes = await listClientes();
+  const modulos = await listModulos();
   // Buscar lista de usuários ativos para popular o filtro de técnico
   const supabaseUsers = getSupabase();
   const { data: usuarios } = await supabaseUsers.from('usuarios').select('nome').eq('ativo', true).order('nome');
   const user = session.get();
   clienteMap = Object.fromEntries((clientes || []).map(c => [c.id_cliente, c.nome]));
+  moduloMap = Object.fromEntries((modulos || []).map(m => [m.id, m.nome]));
   v.innerHTML = `
     <div class="grid">
       <div class="col-12"><div class="hint">Usuário logado: ${user?.nome ?? '—'}</div></div>
-      <div class="col-12">${filtersHtml(clientes, usuarios || [])}</div>
+      <div class="col-12">${filtersHtml(clientes, usuarios || [], modulos || [])}</div>
       <div class="col-12">${gridHtml()}</div>
     </div>
   `;
@@ -320,6 +340,7 @@ export async function render() {
     const filters = {
       status: sanitizeText(document.getElementById('fStatus').value) || undefined,
       tipo: sanitizeText(document.getElementById('fTipo').value) || undefined,
+      modulo_id: sanitizeText(document.getElementById('fModulo').value) || undefined,
       cliente_id: sanitizeText(document.getElementById('fCliente').value) || undefined,
       tecnico: sanitizeText(document.getElementById('fTecnico').value) || undefined,
       data_ini: toDate(document.getElementById('fDataIni').value) || undefined,
@@ -329,7 +350,7 @@ export async function render() {
     state.page = 1;
     debouncedApply();
   }, 250);
-  ['fStatus','fTipo','fCliente','fTecnico','fDataIni','fDataFim'].forEach(id => {
+  ['fStatus','fTipo','fModulo','fCliente','fTecnico','fDataIni','fDataFim'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('change', updateFilters);
@@ -515,6 +536,106 @@ export async function render() {
         campo_alterado: 'status', valor_anterior: prev?.status ?? null, valor_novo: 'Resolvido'
       });
       apply();
+    }
+    if (act === 'edit') {
+      const { openModal } = await import('./ui.js');
+      const m = openModal(formHtml(clientes));
+      m.querySelector('h3').textContent = `Editar Pendência #${id}`;
+      // opções de módulo
+      const moduloSel = m.querySelector('#moduloSel');
+      moduloSel.innerHTML = ['<option value="">Selecione...</option>', ...Object.entries(moduloMap).map(([val, nome]) => `<option value="${val}">${nome}</option>`)].join('');
+      // opções de técnicos
+      const supabaseUsers = getSupabase();
+      const { data: usuariosEdit } = await supabaseUsers.from('usuarios').select('nome').eq('ativo', true).order('nome');
+      const tecnicoSel = m.querySelector('#tecnicoSel');
+      tecnicoSel.innerHTML = ['<option value="">Selecione...</option>', ...(usuariosEdit ?? []).map(u => `<option value="${u.nome}">${u.nome}</option>`)].join('');
+      // carregar pendência
+      const { data: pend } = await supabase.from('pendencias').select('*').eq('id', id).maybeSingle();
+      const setVal = (name, value) => { const el = m.querySelector(`[name="${name}"]`); if (el && value !== undefined && value !== null) el.value = value; };
+      setVal('cliente_id', pend?.cliente_id ?? '');
+      setVal('modulo_id', pend?.modulo_id ?? '');
+      setVal('tipo', pend?.tipo ?? 'Suporte');
+      setVal('prioridade', pend?.prioridade ?? 'Media');
+      setVal('tecnico', pend?.tecnico ?? '');
+      setVal('data_relato', pend?.data_relato ?? '');
+      setVal('previsao_conclusao', pend?.previsao_conclusao ?? '');
+      setVal('descricao', pend?.descricao ?? '');
+      setVal('link_trello', pend?.link_trello ?? '');
+      setVal('situacao', pend?.situacao ?? '');
+      setVal('etapas_reproducao', pend?.etapas_reproducao ?? '');
+      setVal('frequencia', pend?.frequencia ?? '');
+      setVal('informacoes_adicionais', pend?.informacoes_adicionais ?? '');
+      setVal('escopo', pend?.escopo ?? '');
+      setVal('objetivo', pend?.objetivo ?? '');
+      setVal('recursos_necessarios', pend?.recursos_necessarios ?? '');
+      setVal('informacoes_implantacao', pend?.informacoes_implantacao ?? '');
+      setVal('escopo_atual', pend?.escopo_atual ?? '');
+      setVal('motivacao', pend?.motivacao ?? '');
+      setVal('impacto', pend?.impacto ?? '');
+      setVal('requisitos_especificos', pend?.requisitos_especificos ?? '');
+      // status apenas exibe (não editável)
+      const statusSel = m.querySelector('select[name="status"]');
+      if (statusSel) { statusSel.disabled = true; statusSel.innerHTML = `<option selected>${pend?.status ?? 'Triagem'}</option>`; }
+      // habilitar grupos e required
+      const tipoSel = m.querySelector('select[name="tipo"]');
+      const grpPS = m.querySelector('#grpPS');
+      const grpImpl = m.querySelector('#grpImpl');
+      const grpAtual = m.querySelector('#grpAtual');
+      const updateGroupsEdit = () => {
+        const t = tipoSel.value;
+        grpPS.style.display = (t === 'Programação' || t === 'Suporte') ? 'block' : 'none';
+        grpImpl.style.display = (t === 'Implantação') ? 'block' : 'none';
+        grpAtual.style.display = (t === 'Atualizacao') ? 'block' : 'none';
+        const setReq = (names, required) => names.forEach(n => { const el = m.querySelector(`[name="${n}"]`); if (el) el.required = required; });
+        setReq(['descricao'], true);
+        setReq(['situacao','etapas_reproducao','frequencia','informacoes_adicionais','escopo','objetivo','recursos_necessarios','informacoes_implantacao','escopo_atual','motivacao','impacto','requisitos_especificos'], false);
+        if (t === 'Programação' || t === 'Suporte') setReq(['situacao','etapas_reproducao','frequencia'], true);
+        else if (t === 'Implantação') setReq(['escopo','objetivo'], true);
+        else if (t === 'Atualizacao') setReq(['escopo_atual','motivacao','impacto'], true);
+      };
+      tipoSel.addEventListener('change', updateGroupsEdit);
+      updateGroupsEdit();
+      const form = m.querySelector('#pForm');
+      const msg = m.querySelector('#pFormMsg');
+      form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        msg.textContent = 'Salvando...';
+        const fd = new FormData(form);
+        const tipoVal = sanitizeText(fd.get('tipo'));
+        let obrig = ['descricao'];
+        if (tipoVal === 'Programação' || tipoVal === 'Suporte') obrig = obrig.concat(['situacao','etapas_reproducao','frequencia']);
+        else if (tipoVal === 'Implantação') obrig = obrig.concat(['escopo','objetivo']);
+        else if (tipoVal === 'Atualizacao') obrig = obrig.concat(['escopo_atual','motivacao','impacto']);
+        const faltando = obrig.filter(k => !sanitizeText(fd.get(k)));
+        if (faltando.length) { msg.textContent = 'Preencha os campos obrigatórios: ' + faltando.join(', '); return; }
+        const payload = {
+          cliente_id: Number(fd.get('cliente_id')) || null,
+          modulo_id: Number(fd.get('modulo_id')),
+          tipo: sanitizeText(fd.get('tipo')),
+          descricao: sanitizeText(fd.get('descricao')),
+          link_trello: sanitizeText(fd.get('link_trello')),
+          situacao: sanitizeText(fd.get('situacao')),
+          etapas_reproducao: sanitizeText(fd.get('etapas_reproducao')),
+          frequencia: sanitizeText(fd.get('frequencia')),
+          informacoes_adicionais: sanitizeText(fd.get('informacoes_adicionais')) || sanitizeText(fd.get('impacto')) || sanitizeText(fd.get('informacoes_implantacao')),
+          escopo: sanitizeText(fd.get('escopo')) || sanitizeText(fd.get('escopo_atual')),
+          objetivo: sanitizeText(fd.get('objetivo')) || sanitizeText(fd.get('motivacao')),
+          recursos_necessarios: sanitizeText(fd.get('recursos_necessarios')) || sanitizeText(fd.get('requisitos_especificos')),
+          tecnico: sanitizeText(fd.get('tecnico')),
+          data_relato: toDate(fd.get('data_relato')),
+          previsao_conclusao: toDate(fd.get('previsao_conclusao')),
+          prioridade: sanitizeText(fd.get('prioridade')),
+        };
+        try {
+          const { error } = await supabase.from('pendencias').update(payload).eq('id', id);
+          if (error) throw error;
+          await supabase.from('pendencia_triagem').update({ tecnico_relato: payload.tecnico }).eq('pendencia_id', id);
+          msg.textContent = 'Salvo com sucesso';
+          apply();
+        } catch (err) {
+          msg.textContent = 'Erro: ' + err.message;
+        }
+      });
     }
   });
 
