@@ -83,7 +83,7 @@ export function openModal(innerHtml) {
   modal.style.width = '96%';
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
-  modal.innerHTML = '<div class="toolbar" style="justify-content:flex-end"><button class="btn" id="closeModal">Fechar</button></div>' + innerHtml;
+  modal.innerHTML = innerHtml;
 
   overlay.appendChild(modal);
   const prevOverflow = document.body.style.overflow;
@@ -120,7 +120,10 @@ export function openModal(innerHtml) {
 
   document.addEventListener('keydown', keyHandler);
   // Não fechar por clique no fundo; apenas pelo botão "Fechar" ou tecla Escape
-  modal.querySelector('#closeModal').addEventListener('click', () => close());
+  // Botão de fechar será controlado pelo chamador via m.querySelector('#closeModalBtn')
+
+  // Expor método de fechamento no elemento do modal
+  modal.closeModal = close;
 
   return modal;
 }

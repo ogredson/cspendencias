@@ -19,6 +19,14 @@ create table public.pendencias (
   link_trello text null,
   created_at timestamp with time zone null default now(),
   updated_at timestamp with time zone null default now(),
+  situacao text null,
+  etapas_reproducao text null,
+  frequencia text null,
+  informacoes_adicionais text null,
+  escopo text null,
+  objetivo text null,
+  recursos_necessarios text null,
+  solucao_orientacao text null,
   constraint pendencias_pkey primary key (id),
   constraint pendencias_cliente_id_fkey foreign KEY (cliente_id) references clientes (id_cliente),
   constraint pendencias_modulo_id_fkey foreign KEY (modulo_id) references modulos (id),
@@ -39,15 +47,16 @@ create table public.pendencias (
   constraint pendencias_status_check check (
     (
       (status)::text = any (
-        (
-          array[
-            'Pendente'::character varying,
-            'Em Andamento'::character varying,
-            'Resolvido'::character varying,
-            'Em Analise'::character varying,
-            'Em Teste'::character varying
-          ]
-        )::text[]
+        array[
+          ('Triagem'::character varying)::text,
+          ('Aguardando Aceite'::character varying)::text,
+          ('Rejeitada'::character varying)::text,
+          ('Em Analise'::character varying)::text,
+          ('Aguardando o Cliente'::character varying)::text,
+          ('Em Andamento'::character varying)::text,
+          ('Em Teste'::character varying)::text,
+          ('Resolvido'::character varying)::text
+        ]
       )
     )
   ),

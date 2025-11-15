@@ -177,7 +177,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
     <div class="grid">
       <div class="col-6">
         <div class="card">
-          <h3>Pendência ${pend?.id ? 'ID-' + String(pend.id).padStart(5, '0') : ''}</h3>
+          <h3 class="title-accent">Pendência ${pend?.id ? 'ID-' + String(pend.id).padStart(5, '0') : ''}</h3>
           <div style="background:${getStatusColor(pend?.status)}; color:#fff; padding:6px 10px; border-radius:4px; font-size:12px; margin-bottom:8px;">
             <div style="font-weight:600">${pend?.status || ''}</div>
             <div>${statusDetail}</div>
@@ -187,7 +187,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
           <div><b>Técnico:</b> ${pend?.tecnico}</div>
           <div><b>Prioridade:</b> <span class="prio ${pend?.prioridade}" aria-label="${pend?.prioridade}">${pend?.prioridade}</span></div>
           <div><b>Data do relato:</b> ${formatDateBr(pend?.data_relato)}</div>
-          <div><b>Título:</b> ${pend?.descricao ?? ''}</div>
+          <div class="pend-title ${pend?.prioridade === 'Critica' ? 'critical' : ''}"><b>Título:</b> <span>${pend?.descricao ?? ''}</span></div>
           ${pend?.link_trello ? `<div style="margin-top:8px"><a class="btn" href="${pend.link_trello}" target="_blank" rel="noopener">Abrir no Trello</a></div>` : ''}
         </div>
         <div class="card">
@@ -244,6 +244,10 @@ const fmt = (dt) => formatDateTimeBr(dt);
       </div>
       <div class="col-6">
         ${detalhesHtml}
+        <div class="card" style="border-left:4px solid #10B981; background:#F0FDF4;">
+          <h3>💡 Solução / Orientação</h3>
+          <div style="white-space:pre-wrap;">${pend?.solucao_orientacao ? pend.solucao_orientacao : '<span style="opacity:0.7">Não informado</span>'}</div>
+        </div>
         <div class="card" style="min-height:320px">
           <h3>Gráfico Timeline por Status</h3>
           <div style="padding:12px;">

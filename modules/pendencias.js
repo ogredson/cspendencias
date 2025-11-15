@@ -89,6 +89,11 @@ function formHtml(clientes) {
   <div class="card">
     <h3>Nova Pendência</h3>
     <form id="pForm" class="form">
+      <div class="tabs" role="tablist" style="display:flex; gap:8px; margin-bottom:8px;">
+        <button type="button" class="tab active" data-tab="dados">Dados</button>
+        <button type="button" class="tab" data-tab="solucao">Solução/Orientação</button>
+      </div>
+      <div id="tabContentDados" data-tab-content="dados">
       <div class="row">
         <div class="col-6 field">
           <label>Cliente</label>
@@ -211,7 +216,19 @@ function formHtml(clientes) {
           <textarea class="input" name="requisitos_especificos"></textarea>
         </div>
       </div>
-      <div class="toolbar">
+      </div>
+      <div id="tabContentSolucao" data-tab-content="solucao" style="display:none;">
+        <div class="card" style="margin-top:8px;">
+          <h4>💡 Solução / Orientação</h4>
+          <div class="field">
+            <label>Descreva a solução, possível solução ou orientação</label>
+            <textarea class="input" name="solucao_orientacao" placeholder="Opcional"></textarea>
+          </div>
+          <div class="hint">Opcional — informações que ajudem a solucionar a pendência.</div>
+        </div>
+      </div>
+      <div class="toolbar" style="justify-content:flex-end">
+        <button class="btn" type="button" id="closeModalBtn">Fechar</button>
         <button class="btn primary" type="submit">Salvar</button>
       </div>
     </form>
@@ -360,10 +377,21 @@ export async function render() {
   document.getElementById('novoBtn').addEventListener('click', async () => {
     const { openModal } = await import('./ui.js');
     const m = openModal(formHtml(clientes));
+    // Tabs: alternância entre Dados e Solução
+    const tabs = m.querySelectorAll('.tab');
+    const contents = m.querySelectorAll('[data-tab-content]');
+    tabs.forEach(btn => btn.addEventListener('click', () => {
+      tabs.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.getAttribute('data-tab');
+      contents.forEach(c => c.style.display = c.getAttribute('data-tab-content') === tab ? 'block' : 'none');
+    }));
     // Preencher opções de módulo com nomes
     const mods = await listModulos();
     const moduloSel = m.querySelector('#moduloSel');
     moduloSel.innerHTML = ['<option value="">Selecione...</option>', ...mods.map(m => `<option value="${m.id}">${m.nome}</option>`)].join('');
+    const closeBtn = m.querySelector('#closeModalBtn');
+    if (closeBtn) closeBtn.addEventListener('click', () => { if (typeof m.closeModal === 'function') m.closeModal(); });
     // Preencher técnicos com base na tabela usuarios
     const supabaseUsers = getSupabase();
     const { data: usuarios } = await supabaseUsers.from('usuarios').select('nome').eq('ativo', true).order('nome');
@@ -460,6 +488,7 @@ export async function render() {
         escopo: sanitizeText(fd.get('escopo')) || sanitizeText(fd.get('escopo_atual')),
         objetivo: sanitizeText(fd.get('objetivo')) || sanitizeText(fd.get('motivacao')),
         recursos_necessarios: sanitizeText(fd.get('recursos_necessarios')) || sanitizeText(fd.get('requisitos_especificos')),
+        solucao_orientacao: sanitizeText(fd.get('solucao_orientacao')),
         tecnico: sanitizeText(fd.get('tecnico')),
         data_relato: toDate(fd.get('data_relato')),
         previsao_conclusao: toDate(fd.get('previsao_conclusao')),
@@ -493,6 +522,7 @@ export async function render() {
         tipo: sanitizeText(form.get('tipo')),
         descricao: sanitizeText(form.get('descricao')),
         link_trello: sanitizeText(form.get('link_trello')),
+        solucao_orientacao: sanitizeText(form.get('solucao_orientacao')),
         tecnico: sanitizeText(form.get('tecnico')),
         data_relato: toDate(form.get('data_relato')),
         previsao_conclusao: toDate(form.get('previsao_conclusao')),
@@ -525,22 +555,88 @@ export async function render() {
       apply();
     }
     if (act === 'res') {
-      const ok = await confirmDialog(`Você está prestes a marcar a pendência ${id} como Resolvido.`);
+      const ok = await confirmDialog(`Você irá resolver a pendência ${id}. Você pode registrar uma solução/orientação antes de concluir.`);
       if (!ok) return;
-      // buscar status anterior para histórico
-      const { data: prev } = await supabase.from('pendencias').select('status, tecnico').eq('id', id).maybeSingle();
-      const usuario = session.get()?.nome || prev?.tecnico || '—';
-      await supabase.from('pendencias').update({ status: 'Resolvido' }).eq('id', id);
-      await supabase.from('pendencia_historicos').insert({
-        pendencia_id: id, acao: 'Pendência resolvida', usuario,
-        campo_alterado: 'status', valor_anterior: prev?.status ?? null, valor_novo: 'Resolvido'
+      // Abrir modal de edição focado apenas em Solução/Orientação
+      const { openModal } = await import('./ui.js');
+      const m = openModal(formHtml(clientes));
+      m.querySelector('h3').textContent = `Resolver Pendência #${id}`;
+      const closeBtn = m.querySelector('#closeModalBtn');
+      if (closeBtn) closeBtn.addEventListener('click', () => { if (typeof m.closeModal === 'function') m.closeModal(); });
+      // Preencher opções de módulo e técnicos, mas desabilitar edição
+      const moduloSel = m.querySelector('#moduloSel');
+      moduloSel.innerHTML = ['<option value="">Selecione...</option>', ...Object.entries(moduloMap).map(([val, nome]) => `<option value="${val}">${nome}</option>`)].join('');
+      const supabaseUsers = getSupabase();
+      const { data: usuariosEdit } = await supabaseUsers.from('usuarios').select('nome').eq('ativo', true).order('nome');
+      const tecnicoSel = m.querySelector('#tecnicoSel');
+      tecnicoSel.innerHTML = ['<option value="">Selecione...</option>', ...(usuariosEdit ?? []).map(u => `<option value="${u.nome}">${u.nome}</option>`)].join('');
+      // Carregar pendência e preencher campos
+      const { data: pend } = await supabase.from('pendencias').select('*').eq('id', id).maybeSingle();
+      // Atualizar cabeçalho com título para ajudar o operador
+      if (pend && pend.descricao) {
+        const h = m.querySelector('h3');
+        if (h) h.textContent = `Resolver Pendência #${id} — ${pend.descricao}`;
+      }
+      const setVal = (name, value) => { const el = m.querySelector(`[name="${name}"]`); if (el && value !== undefined && value !== null) el.value = value; };
+      ['cliente_id','modulo_id','tipo','prioridade','tecnico','data_relato','previsao_conclusao','descricao','link_trello','situacao','etapas_reproducao','frequencia','informacoes_adicionais','escopo','objetivo','recursos_necessarios'].forEach(n => setVal(n, pend?.[n] ?? ''));
+      setVal('informacoes_implantacao', pend?.informacoes_adicionais ?? '');
+      setVal('escopo_atual', pend?.escopo ?? '');
+      setVal('motivacao', pend?.objetivo ?? '');
+      setVal('impacto', pend?.informacoes_adicionais ?? '');
+      setVal('requisitos_especificos', pend?.recursos_necessarios ?? '');
+      setVal('solucao_orientacao', pend?.solucao_orientacao ?? '');
+      // Status exibido e bloqueado
+      const statusSel = m.querySelector('select[name="status"]');
+      if (statusSel) { statusSel.disabled = true; statusSel.innerHTML = `<option selected>${pend?.status ?? 'Triagem'}</option>`; }
+      // Tabs: mostrar apenas Solução
+      const tabs = m.querySelectorAll('.tab');
+      const contents = m.querySelectorAll('[data-tab-content]');
+      tabs.forEach(b => b.classList.remove('active'));
+      const solBtn = Array.from(tabs).find(b => b.getAttribute('data-tab') === 'solucao');
+      if (solBtn) solBtn.classList.add('active');
+      contents.forEach(c => c.style.display = c.getAttribute('data-tab-content') === 'solucao' ? 'block' : 'none');
+      // Desabilitar edição de todos os campos, exceto solucao_orientacao
+      Array.from(m.querySelectorAll('input, select, textarea')).forEach(el => {
+        if (el.getAttribute('name') !== 'solucao_orientacao') el.disabled = true;
       });
-      apply();
+      const solEl = m.querySelector('[name="solucao_orientacao"]');
+      if (solEl) { solEl.required = true; solEl.focus(); }
+      const form = m.querySelector('#pForm');
+      const msg = m.querySelector('#pFormMsg');
+      form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        msg.textContent = 'Salvando e resolvendo...';
+        const fd = new FormData(form);
+        const textoSolucao = sanitizeText(fd.get('solucao_orientacao'));
+        if (!textoSolucao) { msg.textContent = 'Informe a solução/orientação antes de resolver.'; return; }
+        const payload = {
+          solucao_orientacao: textoSolucao,
+          status: 'Resolvido',
+        };
+        try {
+          // buscar status anterior para histórico
+          const { data: prev } = await supabase.from('pendencias').select('status, tecnico').eq('id', id).maybeSingle();
+          const usuario = session.get()?.nome || prev?.tecnico || '—';
+          const { error } = await supabase.from('pendencias').update(payload).eq('id', id);
+          if (error) throw error;
+          await supabase.from('pendencia_historicos').insert({
+            pendencia_id: id, acao: 'Pendência resolvida', usuario,
+            campo_alterado: 'status', valor_anterior: prev?.status ?? null, valor_novo: 'Resolvido'
+          });
+          msg.textContent = 'Resolvido com sucesso';
+          apply();
+          if (typeof m.closeModal === 'function') m.closeModal();
+        } catch (err) {
+          msg.textContent = 'Erro: ' + err.message;
+        }
+      });
     }
     if (act === 'edit') {
       const { openModal } = await import('./ui.js');
       const m = openModal(formHtml(clientes));
       m.querySelector('h3').textContent = `Editar Pendência #${id}`;
+      const closeBtn = m.querySelector('#closeModalBtn');
+      if (closeBtn) closeBtn.addEventListener('click', () => { if (typeof m.closeModal === 'function') m.closeModal(); });
       // opções de módulo
       const moduloSel = m.querySelector('#moduloSel');
       moduloSel.innerHTML = ['<option value="">Selecione...</option>', ...Object.entries(moduloMap).map(([val, nome]) => `<option value="${val}">${nome}</option>`)].join('');
@@ -564,15 +660,24 @@ export async function render() {
       setVal('situacao', pend?.situacao ?? '');
       setVal('etapas_reproducao', pend?.etapas_reproducao ?? '');
       setVal('frequencia', pend?.frequencia ?? '');
+      // Valores comuns salvos na tabela
       setVal('informacoes_adicionais', pend?.informacoes_adicionais ?? '');
       setVal('escopo', pend?.escopo ?? '');
       setVal('objetivo', pend?.objetivo ?? '');
       setVal('recursos_necessarios', pend?.recursos_necessarios ?? '');
-      setVal('informacoes_implantacao', pend?.informacoes_implantacao ?? '');
-      setVal('escopo_atual', pend?.escopo_atual ?? '');
-      setVal('motivacao', pend?.motivacao ?? '');
-      setVal('impacto', pend?.impacto ?? '');
-      setVal('requisitos_especificos', pend?.requisitos_especificos ?? '');
+      // Preencher campos específicos por tipo a partir dos campos comuns
+      if (pend?.tipo === 'Implantação') {
+        // Campo de "Informações" da implantação é salvo em informacoes_adicionais
+        setVal('informacoes_implantacao', pend?.informacoes_adicionais ?? '');
+      } else if (pend?.tipo === 'Atualizacao') {
+        // Mapear comuns -> específicos para atualização
+        setVal('escopo_atual', pend?.escopo ?? '');
+        setVal('motivacao', pend?.objetivo ?? '');
+        setVal('impacto', pend?.informacoes_adicionais ?? '');
+        setVal('requisitos_especificos', pend?.recursos_necessarios ?? '');
+      }
+      // Novo campo: solução/orientação
+      setVal('solucao_orientacao', pend?.solucao_orientacao ?? '');
       // status apenas exibe (não editável)
       const statusSel = m.querySelector('select[name="status"]');
       if (statusSel) { statusSel.disabled = true; statusSel.innerHTML = `<option selected>${pend?.status ?? 'Triagem'}</option>`; }
@@ -597,6 +702,15 @@ export async function render() {
       updateGroupsEdit();
       const form = m.querySelector('#pForm');
       const msg = m.querySelector('#pFormMsg');
+      // Tabs comportamento para edição
+      const tabs = m.querySelectorAll('.tab');
+      const contents = m.querySelectorAll('[data-tab-content]');
+      tabs.forEach(btn => btn.addEventListener('click', () => {
+        tabs.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.getAttribute('data-tab');
+        contents.forEach(c => c.style.display = c.getAttribute('data-tab-content') === tab ? 'block' : 'none');
+      }));
       form.addEventListener('submit', async (ev) => {
         ev.preventDefault();
         msg.textContent = 'Salvando...';
@@ -621,6 +735,7 @@ export async function render() {
           escopo: sanitizeText(fd.get('escopo')) || sanitizeText(fd.get('escopo_atual')),
           objetivo: sanitizeText(fd.get('objetivo')) || sanitizeText(fd.get('motivacao')),
           recursos_necessarios: sanitizeText(fd.get('recursos_necessarios')) || sanitizeText(fd.get('requisitos_especificos')),
+          solucao_orientacao: sanitizeText(fd.get('solucao_orientacao')),
           tecnico: sanitizeText(fd.get('tecnico')),
           data_relato: toDate(fd.get('data_relato')),
           previsao_conclusao: toDate(fd.get('previsao_conclusao')),
@@ -632,6 +747,7 @@ export async function render() {
           await supabase.from('pendencia_triagem').update({ tecnico_relato: payload.tecnico }).eq('pendencia_id', id);
           msg.textContent = 'Salvo com sucesso';
           apply();
+          if (typeof m.closeModal === 'function') m.closeModal();
         } catch (err) {
           msg.textContent = 'Erro: ' + err.message;
         }
