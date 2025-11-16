@@ -1,4 +1,5 @@
-import { viewMount, confirmDialog } from './ui.js';
+// topo: imports
+import { viewMount, confirmDialog, openModal } from './ui.js';
 import { getSupabase } from '../supabaseClient.js';
 import { session } from '../utils/session.js';
 import { debounce } from '../utils/debounce.js';
@@ -14,23 +15,32 @@ function statusBadge(s) {
   return `<span class="status ${s}" aria-label="${s}">${s}</span>`;
 }
 
+// Formata ID como 'ID-00080' mesmo se já vier 'ID-00080'
+function formatPendId(id) {
+  const s = String(id ?? '');
+  const raw = s.replace(/^ID-/, '');
+  return 'ID-' + String(raw).padStart(5, '0');
+}
+
 export async function render() {
   const v = viewMount();
   const id = getIdFromHash();
   if (!id) { v.innerHTML = `<div class="card"><div class="hint">ID não informado.</div></div>`; return; }
   const supabase = getSupabase();
-  const [{ data: pend }, { data: tri }, { data: hist }, { data: usuarios }, { data: clientes }] = await Promise.all([
+  const [{ data: pend }, { data: tri }, { data: hist }, { data: usuarios }, { data: clientes }, { data: modulos }] = await Promise.all([
     supabase.from('pendencias').select('*').eq('id', id).maybeSingle(),
     supabase.from('pendencia_triagem').select('*').eq('pendencia_id', id).maybeSingle(),
     supabase.from('pendencia_historicos').select('*').eq('pendencia_id', id).order('created_at', { ascending: false }),
     supabase.from('usuarios').select('nome').eq('ativo', true).order('nome'),
-    supabase.from('clientes').select('id_cliente, nome')
+    supabase.from('clientes').select('id_cliente, nome'),
+    supabase.from('modulos').select('id, nome').order('id')
   ]);
 
   const triagemSel = (usuarios || []).map(u => `<option value="${u.nome}">${u.nome}</option>`).join('');
 
   // helpers para histórico e formatação
 const fmt = (dt) => formatDateTimeBr(dt);
+  const sanitizeText = (s) => String(s ?? '').replace(/[&<>\"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;'}[ch]));
   const findByAction = (arr, needle) => (arr || []).find(h => String(h.acao || '').toLowerCase().includes(needle));
   const histDesignado = findByAction(hist, 'designado para triagem');
   const histAceito = findByAction(hist, 'aceita para resolução');
@@ -148,28 +158,40 @@ const fmt = (dt) => formatDateTimeBr(dt);
     detalhesHtml = `
       <div class="card">
         <h3>📋 Programação & Suporte</h3>
-        <div><b>Situação:</b><br/>${pend?.situacao ?? 'Não informado'}</div>
-        <div><b>Etapas:</b><br/>${pend?.etapas_reproducao ?? 'Não informado'}</div>
-        <div><b>Frequência:</b> ${pend?.frequencia ?? 'Não informado'}</div>
-        <div><b>Informações:</b><br/>${pend?.informacoes_adicionais ?? 'Não informado'}</div>
+        <table class="table details-table" style="margin-top:8px;">
+          <tbody>
+            <tr><th>Situação:</th><td class="pre">${pend?.situacao ?? 'Não informado'}</td></tr>
+            <tr><th>Etapas:</th><td class="pre">${pend?.etapas_reproducao ?? 'Não informado'}</td></tr>
+            <tr><th>Frequência:</th><td>${pend?.frequencia ?? 'Não informado'}</td></tr>
+            <tr><th>Informações:</th><td class="pre">${pend?.informacoes_adicionais ?? 'Não informado'}</td></tr>
+          </tbody>
+        </table>
       </div>`;
   } else if (pend?.tipo === 'Implantação') {
     detalhesHtml = `
       <div class="card">
         <h3>🚀 Implantação</h3>
-        <div><b>Escopo:</b><br/>${pend?.escopo ?? 'Não informado'}</div>
-        <div><b>Objetivo:</b><br/>${pend?.objetivo ?? 'Não informado'}</div>
-        <div><b>Recursos:</b><br/>${pend?.recursos_necessarios ?? 'Não informado'}</div>
-        <div><b>Informações:</b><br/>${pend?.informacoes_adicionais ?? 'Não informado'}</div>
+        <table class="table details-table" style="margin-top:8px;">
+          <tbody>
+            <tr><th>Escopo:</th><td class="pre">${pend?.escopo ?? 'Não informado'}</td></tr>
+            <tr><th>Objetivo:</th><td class="pre">${pend?.objetivo ?? 'Não informado'}</td></tr>
+            <tr><th>Recursos:</th><td class="pre">${pend?.recursos_necessarios ?? 'Não informado'}</td></tr>
+            <tr><th>Informações:</th><td class="pre">${pend?.informacoes_adicionais ?? 'Não informado'}</td></tr>
+          </tbody>
+        </table>
       </div>`;
   } else if (pend?.tipo === 'Atualizacao') {
     detalhesHtml = `
       <div class="card">
         <h3>🔄 Atualização</h3>
-        <div><b>Escopo:</b><br/>${pend?.escopo ?? 'Não informado'}</div>
-        <div><b>Motivação:</b><br/>${pend?.objetivo ?? 'Não informado'}</div>
-        <div><b>Impacto:</b><br/>${pend?.informacoes_adicionais ?? 'Não informado'}</div>
-        <div><b>Requisitos específicos:</b><br/>${pend?.recursos_necessarios ?? 'Não informado'}</div>
+        <table class="table details-table" style="margin-top:8px;">
+          <tbody>
+            <tr><th>Escopo:</th><td class="pre">${pend?.escopo ?? 'Não informado'}</td></tr>
+            <tr><th>Motivação:</th><td class="pre">${pend?.objetivo ?? 'Não informado'}</td></tr>
+            <tr><th>Impacto:</th><td class="pre">${pend?.informacoes_adicionais ?? 'Não informado'}</td></tr>
+            <tr><th>Requisitos específicos:</th><td class="pre">${pend?.recursos_necessarios ?? 'Não informado'}</td></tr>
+          </tbody>
+        </table>
       </div>`;
   }
 
@@ -177,19 +199,46 @@ const fmt = (dt) => formatDateTimeBr(dt);
     <div class="grid">
       <div class="col-6">
         <div class="card">
-          <h3 class="title-accent">Pendência ${pend?.id ? 'ID-' + String(pend.id).padStart(5, '0') : ''}</h3>
+          <h3 class="title-accent">Pendência: ${pend?.id ? formatPendId(pend.id) : ''}</h3>
           <div style="background:${getStatusColor(pend?.status)}; color:#fff; padding:6px 10px; border-radius:4px; font-size:12px; margin-bottom:8px;">
             <div style="font-weight:600">${pend?.status || ''}</div>
             <div>${statusDetail}</div>
           </div>
-          <div><b>Cliente:</b> ${(clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome ?? pend?.cliente_id ?? ''}</div>
-          <div><b>Tipo:</b> ${pend?.tipo}</div>
-          <div><b>Técnico:</b> ${pend?.tecnico}</div>
-          <div><b>Prioridade:</b> <span class="prio ${pend?.prioridade}" aria-label="${pend?.prioridade}">${pend?.prioridade}</span></div>
-          <div><b>Data do relato:</b> ${formatDateBr(pend?.data_relato)}</div>
-          <div class="pend-title ${pend?.prioridade === 'Critica' ? 'critical' : ''}"><b>Título:</b> <span>${pend?.descricao ?? ''}</span></div>
+
+          <!-- Título agora logo abaixo da barra de status -->
+          <div class="pend-title ${pend?.prioridade === 'Critica' ? 'critical' : ''}">
+            <b>Título:</b> <span>${pend?.descricao ?? ''}</span>
+          </div>
+
+          <!-- Tabela de detalhes para simetria -->
+          <table class="table details-table" style="margin-top:8px;">
+            <tbody>
+              <tr>
+                <th>Cliente:</th>
+                <td>${(clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome ?? pend?.cliente_id ?? ''}</td>
+              </tr>
+              <tr>
+                <th>Tipo:</th>
+                <td>${pend?.tipo ?? '—'}</td>
+              </tr>
+              <tr>
+                <th>Técnico:</th>
+                <td>${pend?.tecnico ?? '—'}</td>
+              </tr>
+              <tr>
+                <th>Prioridade:</th>
+                <td><span class="prio ${pend?.prioridade}" aria-label="${pend?.prioridade}">${pend?.prioridade}</span></td>
+              </tr>
+              <tr>
+                <th>Data do relato:</th>
+                <td>${formatDateBr(pend?.data_relato)}</td>
+              </tr>
+            </tbody>
+          </table>
+
           ${pend?.link_trello ? `<div style="margin-top:8px"><a class="btn" href="${pend.link_trello}" target="_blank" rel="noopener">Abrir no Trello</a></div>` : ''}
         </div>
+
         <div class="card">
           <h3>Controle de Fluxo</h3>
           <div><b>Técnico do Relato:</b> ${tri?.tecnico_relato ?? pend?.tecnico ?? ''}</div>
@@ -201,6 +250,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
             </div>
           </div>
           <div class="toolbar" style="margin-top:8px">
+            <button class="btn light-warning" id="btnOrdemServico">Gerar Ordem de Serviço</button>
             <button class="btn primary" id="btnAnalise">Aceitar Análise</button>
             <button class="btn success" id="btnAceitar">Aceitar Resolução</button>
             <button class="btn test" id="btnTestes">Enviar para Testes</button>
@@ -412,6 +462,132 @@ const fmt = (dt) => formatDateTimeBr(dt);
       valor_novo: 'Aguardando o Cliente'
     });
     render();
+  });
+
+  // Botão: Gerar Ordem de Serviço
+  const osBtn = document.getElementById('btnOrdemServico');
+  if (osBtn) osBtn.addEventListener('click', () => {
+    const pid = formatPendId(id);
+    const clienteNome = (clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome || pend?.cliente_id || '—';
+    const moduloNome = (modulos || []).find(m => m.id === pend?.modulo_id)?.nome || pend?.modulo_id || '—';
+    const tipo = pend?.tipo || '—';
+    const prio = pend?.prioridade || '—';
+    const tecnico = pend?.tecnico || tri?.tecnico_relato || '—';
+    const dataRel = formatDateBr(pend?.data_relato);
+    const titulo = String(pend?.descricao || '').trim();
+
+    const blocoPS = `
+      <tr><th>Situação</th><td class='pre'>${pend?.situacao ?? '—'}</td></tr>
+      <tr><th>Etapas</th><td class='pre'>${pend?.etapas_reproducao ?? '—'}</td></tr>
+      <tr><th>Frequência</th><td>${pend?.frequencia ?? '—'}</td></tr>
+      <tr><th>Informações</th><td class='pre'>${pend?.informacoes_adicionais ?? '—'}</td></tr>
+    `;
+    const blocoImpl = `
+      <tr><th>Escopo</th><td class='pre'>${pend?.escopo ?? '—'}</td></tr>
+      <tr><th>Objetivo</th><td class='pre'>${pend?.objetivo ?? '—'}</td></tr>
+      <tr><th>Recursos</th><td class='pre'>${pend?.recursos_necessarios ?? '—'}</td></tr>
+      <tr><th>Informações</th><td class='pre'>${pend?.informacoes_adicionais ?? '—'}</td></tr>
+    `;
+    const blocoAtual = `
+      <tr><th>Escopo</th><td class='pre'>${pend?.escopo ?? '—'}</td></tr>
+      <tr><th>Motivação</th><td class='pre'>${pend?.objetivo ?? '—'}</td></tr>
+      <tr><th>Impacto</th><td class='pre'>${pend?.informacoes_adicionais ?? '—'}</td></tr>
+      <tr><th>Requisitos específicos</th><td class='pre'>${pend?.recursos_necessarios ?? '—'}</td></tr>
+    `;
+    const extra =
+      tipo === 'Programação' || tipo === 'Suporte' ? blocoPS :
+      tipo === 'Implantação' ? blocoImpl :
+      tipo === 'Atualizacao' ? blocoAtual : '';
+
+    const modal = openModal(`
+      <div class='card'>
+        <h3>Ordem de Serviço — ${pid}${titulo ? ` • ${sanitizeText(titulo)}` : ''}</h3>
+        <div>
+          <table class='details-table'>
+            <tbody>
+              <tr><th>Cliente</th><td>${sanitizeText(clienteNome)}</td></tr>
+              <tr><th>Módulo</th><td>${sanitizeText(moduloNome)}</td></tr>
+              <tr><th>Tipo</th><td>${sanitizeText(tipo)}</td></tr>
+              <tr><th>Técnico</th><td>${sanitizeText(tecnico)}</td></tr>
+              <tr><th>Prioridade</th><td><span class='prio ${prio}' aria-label='${prio}'>${prio}</span></td></tr>
+              <tr><th>Data do relato</th><td>${dataRel}</td></tr>
+              <tr><th>Título</th><td class='pre'>${sanitizeText(titulo)}</td></tr>
+              ${extra}
+            </tbody>
+          </table>
+        </div>
+        <div class='toolbar' style='justify-content:flex-end'>
+          <button class='btn' id='osFechar'>Fechar</button>
+          <button class='btn' id='osCopiar'>Copiar</button>
+          <button class='btn warning' id='osImprimir'>Imprimir</button>
+        </div>
+      </div>
+    `);
+
+    const osText = [
+      `Ordem de Serviço — ${pid}${titulo ? ` • ${titulo}` : ''}`,
+      `Cliente: ${clienteNome}`,
+      `Módulo: ${moduloNome}`,
+      `Tipo: ${tipo}`,
+      `Técnico: ${tecnico}`,
+      `Prioridade: ${prio}`,
+      `Data do relato: ${dataRel}`,
+      `Título: ${titulo}`,
+      tipo === 'Programação' || tipo === 'Suporte' ? [
+        `Situação: ${pend?.situacao ?? '—'}`,
+        `Etapas: ${pend?.etapas_reproducao ?? '—'}`,
+        `Frequência: ${pend?.frequencia ?? '—'}`,
+        `Informações: ${pend?.informacoes_adicionais ?? '—'}`
+      ].join('\n')
+      : tipo === 'Implantação' ? [
+        `Escopo: ${pend?.escopo ?? '—'}`,
+        `Objetivo: ${pend?.objetivo ?? '—'}`,
+        `Recursos: ${pend?.recursos_necessarios ?? '—'}`,
+        `Informações: ${pend?.informacoes_adicionais ?? '—'}`
+      ].join('\n')
+      : tipo === 'Atualizacao' ? [
+        `Escopo: ${pend?.escopo ?? '—'}`,
+        `Motivação: ${pend?.objetivo ?? '—'}`,
+        `Impacto: ${pend?.informacoes_adicionais ?? '—'}`,
+        `Requisitos específicos: ${pend?.recursos_necessarios ?? '—'}`
+      ].join('\n') : ''
+    ].filter(Boolean).join('\n');
+
+    const closeBtn = modal.querySelector('#osFechar');
+    if (closeBtn && modal.closeModal) closeBtn.addEventListener('click', () => modal.closeModal());
+
+    const copyBtn = modal.querySelector('#osCopiar');
+    if (copyBtn) copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(osText);
+        alert('Ordem de Serviço copiada para a área de transferência.');
+      } catch {
+        alert('Não foi possível copiar. Verifique permissões do navegador.');
+      }
+    });
+
+    const printBtn = modal.querySelector('#osImprimir');
+    if (printBtn) printBtn.addEventListener('click', () => {
+      const w = window.open('', 'os_print');
+      const css = `
+        body { font-family: system-ui, sans-serif; margin: 24px; }
+        h1, h2, h3 { margin: 0 0 12px 0; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+        th { width: 200px; background: #f9f9f9; text-align: left; }
+        .pre { white-space: pre-wrap; }
+      `;
+      w.document.write(`
+        <html><head><title>Ordem de Serviço — ${pid}</title><style>${css}</style></head>
+        <body>
+          <h2>Ordem de Serviço — ${pid}${titulo ? ` • ${sanitizeText(titulo)}` : ''}</h2>
+          ${modal.querySelector('table').outerHTML}
+        </body></html>
+      `);
+      w.document.close();
+      w.focus();
+      w.print();
+    });
   });
 
   // Eventos de filtro e paginação do histórico

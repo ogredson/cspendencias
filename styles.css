@@ -43,7 +43,8 @@ body {
 .btn.await { background: #14B8A6; border-color: #14B8A6; color: #ffffff; }
 
 /* Corrige contraste dos botões no tema claro sem afetar botões de destaque */
-:root[data-theme="light"] .btn:not(.primary):not(.success):not(.danger):not(.warning):not(.test):not(.await) {
+/* Regra genérica do tema claro: exclui .light-warning */
+:root[data-theme="light"] .btn:not(.primary):not(.success):not(.danger):not(.warning):not(.test):not(.await):not(.info):not(.light-warning) {
   background: #ffffff;
   border-color: #e5e7eb;
   color: var(--text);
@@ -170,4 +171,74 @@ textarea { min-height: 80px; }
   background: #A78BFA;
   border-color: #A78BFA;
   color: #1f1633;
+}
+/* Botão amarelo claro (tema escuro) */
+.btn.light-warning {
+  background-color: #fff59d; /* amarelo claro */
+  border-color: #f59e0b;
+  color: #111827;
+}
+.btn.light-warning:hover {
+  background-color: #fef08a;
+  border-color: #f59e0b;
+  color: #111827;
+}
+
+/* Botão amarelo claro (tema claro) */
+:root[data-theme="light"] button.btn.light-warning {
+  background-color: #fff59d; /* amarelo claro */
+  border-color: #f59e0b;
+  color: #111827;
+}
+:root[data-theme="light"] button.btn.light-warning:hover {
+  background-color: #fef08a;
+  border-color: #f59e0b;
+  color: #111827;
+}
+
+/* Alternar Visão: lilás */
+.btn.info {
+  background-color: #a78bfa; /* lilás */
+  border-color: #8b5cf6;
+  color: #ffffff;
+}
+.btn.info:hover {
+  background-color: #8b5cf6; /* lilás mais escuro */
+  border-color: #7c3aed;
+}
+
+.btn.secondary {
+  background-color: #e5e7eb; /* cinza */
+  border-color: #d1d5db;
+  color: #111827;
+}
+.btn.secondary:hover { background-color: #d1d5db; }
+
+.btn.danger {
+  background-color: #ef4444; /* vermelho */
+  border-color: #dc2626;
+  color: #ffffff;
+}
+.btn.danger:hover { background-color: #dc2626; }
+
+/* Estados de foco/acessibilidade */
+.btn:focus-visible {
+  outline: 2px solid rgba(59,130,246,0.8);
+  outline-offset: 2px;
+}
+/* Detalhes: largura fixa da coluna de rótulos */
+.details-table th {
+  width: 200px;
+  white-space: nowrap;
+}
+.details-table td {
+  width: auto;
+}
+/* Preservar quebras para textos longos */
+.details-table td.pre {
+  white-space: pre-wrap;
+}
+.btn:focus-visible {
+  outline: 2px solid rgba(59,130,246,0.8);
+  outline-offset: 2px;
 }

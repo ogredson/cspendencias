@@ -1,4 +1,5 @@
-import { viewMount, confirmDialog } from './ui.js';
+// topo do arquivo (escopo global)
+import { viewMount, confirmDialog, openModal } from './ui.js';
 import { getSupabase } from '../supabaseClient.js';
 import { debounce } from '../utils/debounce.js';
 import { sanitizeText, toDate, formatDateBr } from '../utils/validation.js';
@@ -21,11 +22,14 @@ function daysSince(dateStr) {
 
 function rowHtml(p) {
   const triRelato = Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_relato ?? '') : (p.pendencia_triagem?.tecnico_relato ?? '');
+  const clienteNome = clienteMap[p.cliente_id] ?? p.cliente_id ?? '';
+  const titulo = String(p.descricao ?? '');
+  const tituloAttr = titulo.replace(/"/g, '&quot;');
   return `
     <tr data-id="${p.id}">
       <td><input type="checkbox" class="sel" /></td>
       <td><a href="#/pendencia?id=${p.id}" class="link">${p.id}</a></td>
-      <td>${clienteMap[p.cliente_id] ?? p.cliente_id ?? ''}</td>
+      <td title="${tituloAttr}">${clienteNome}</td>
       <td>${moduloMap[p.modulo_id] ?? p.modulo_id ?? ''}</td>
       <td>${p.tipo}</td>
       <td class="col-tech-relato">${triRelato ?? ''}</td>
@@ -194,26 +198,26 @@ function formHtml(clientes) {
         </div>
         <div class="field">
           <label>Informações: Observações importantes</label>
-          <textarea class="input" name="informacoes_implantacao"></textarea>
+          <textarea class="input" name="informacoes_adicionais"></textarea>
         </div>
       </div>
       <div class="card" id="grpAtual" style="margin-top:8px">
         <h4>🔄 Atualização</h4>
         <div class="field">
           <label>Escopo: O que será atualizado?</label>
-          <textarea class="input" name="escopo_atual"></textarea>
+          <textarea class="input" name="escopo"></textarea>
         </div>
         <div class="field">
           <label>Motivação: Por que esta atualização?</label>
-          <textarea class="input" name="motivacao"></textarea>
+          <textarea class="input" name="objetivo"></textarea>
         </div>
         <div class="field">
           <label>Impacto: Qual o impacto nos usuários?</label>
-          <textarea class="input" name="impacto"></textarea>
+          <textarea class="input" name="informacoes_adicionais"></textarea>
         </div>
         <div class="field">
-          <label>Informações: Requisitos específicos (Versao a atualizar (de/para), Windows/Linux, Banco de dados etc) </label>
-          <textarea class="input" name="requisitos_especificos"></textarea>
+          <label>Requisitos específicos</label>
+          <textarea class="input" name="recursos_necessarios"></textarea>
         </div>
       </div>
       </div>
@@ -249,10 +253,9 @@ function filtersHtml(clientes, usuarios = [], modulos = []) {
         <option>Aguardando Aceite</option>
         <option>Em Analise</option>
         <option>Rejeitada</option>
-       <option>Aguardando o Cliente</option>
-       <option>Em Andamento</option>
+        <option>Em Andamento</option>
         <option>Em Teste</option>
-       <option>Resolvido</option>
+        <option>Resolvido</option>
       </select>
       <select id="fTipo" class="input">
         <option value="">Tipo</option>
@@ -268,8 +271,9 @@ function filtersHtml(clientes, usuarios = [], modulos = []) {
       <input id="fDataFim" class="input" type="date" />
     </div>
     <div class="toolbar" style="margin-top:8px">
-      <button class="btn" id="applyFilters">Aplicar filtros</button>
-      <button class="btn" id="clearFilters">Limpar</button>
+      <button class="btn success" id="applyFilters">Aplicar filtros</button>
+      <button class="btn warning" id="clearFilters">Limpar</button>
+      <button class="btn info" id="toggleView">Alternar Visão</button>
       <button class="btn primary" id="novoBtn">Novo</button>
     </div>
   </div>`;
@@ -277,48 +281,137 @@ function filtersHtml(clientes, usuarios = [], modulos = []) {
 
 function gridHtml() {
   return `
-  <div class="card" id="virtWrap" style="height:clamp(420px, 66vh, 800px); overflow:auto;">
-    <table class="table" id="pTable">
-      <thead><tr>
-        <th><input type="checkbox" id="selAll" /></th>
-        <th>ID</th><th>Cliente</th><th>Módulo</th><th>Tipo</th><th class="col-tech-relato">Téc. Relato</th><th class="col-tech-resp">Responsável</th><th>Prioridade</th><th>Status</th><th>Dias</th><th>Data</th><th>Ações</th>
-      </tr></thead>
-      <tbody></tbody>
-    </table>
-    <div id="spacer" style="height:0px"></div>
-    <div class="toolbar">
-      <button class="btn" id="prevPage">Anterior</button>
+  <div class="card">
+    <div class="toolbar" style="justify-content:space-between; margin-bottom:8px">
       <div id="pageInfo" class="hint"></div>
-      <button class="btn" id="nextPage">Próxima</button>
+      <div>
+        <button class="btn" id="prevPage">Anterior</button>
+        <button class="btn" id="nextPage">Próxima</button>
+      </div>
+    </div>
+    <div id="virtWrap" style="height:calc(100vh - 320px); overflow:auto;">
+      <table id="pTable" class="table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="selAll" /></th>
+            <th>ID</th>
+            <th>Cliente</th>
+            <th>Módulo</th>
+            <th>Tipo</th>
+            <th>Técnico Relato</th>
+            <th>Técnico Resp.</th>
+            <th>Prioridade</th>
+            <th>Status</th>
+            <th>Dias</th>
+            <th>Data Relato</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="filler" style="height:0px"></tr>
+        </tbody>
+      </table>
     </div>
   </div>`;
 }
+
+// definição global de status usados na visão Kanban
+const STATUSES = ['Triagem','Aguardando Aceite','Rejeitada','Em Analise','Em Andamento','Em Teste','Resolvido'];
+const slug = (s) => String(s).toLowerCase().replace(/\s+/g, '_');
+
+function kanbanHtml() {
+  return `
+  <div id="kanbanWrap" style="display:grid; grid-template-columns: repeat(7, 1fr); gap:8px;">
+    ${STATUSES.map(s => `
+      <div class="card">
+        <h4 style="margin:0 0 8px 0">${s}</h4>
+        <div id="kb-${slug(s)}" style="display:flex; flex-direction:column; gap:8px;"></div>
+      </div>
+    `).join('')}
+  </div>`;
+};
 
 export async function render() {
   const v = viewMount();
   const clientes = await listClientes();
   const modulos = await listModulos();
-  // Buscar lista de usuários ativos para popular o filtro de técnico
-  const supabaseUsers = getSupabase();
-  const { data: usuarios } = await supabaseUsers.from('usuarios').select('nome').eq('ativo', true).order('nome');
+
+  // Fallback seguro para lista de usuários (não bloquear render)
+  let usuarios = [];
+  try {
+    const supabaseUsers = getSupabase();
+    if (supabaseUsers) {
+      const { data } = await supabaseUsers
+        .from('usuarios')
+        .select('nome')
+        .eq('ativo', true)
+        .order('nome');
+      usuarios = data || [];
+    }
+  } catch {
+    usuarios = [];
+  }
+
   const user = session.get();
   clienteMap = Object.fromEntries((clientes || []).map(c => [c.id_cliente, c.nome]));
   moduloMap = Object.fromEntries((modulos || []).map(m => [m.id, m.nome]));
+
   v.innerHTML = `
     <div class="grid">
       <div class="col-12"><div class="hint">Usuário logado: ${user?.nome ?? '—'}</div></div>
-      <div class="col-12">${filtersHtml(clientes, usuarios || [], modulos || [])}</div>
-      <div class="col-12">${gridHtml()}</div>
+      <div class="col-12">${filtersHtml(clientes, usuarios, modulos)}</div>
+      <div class="col-12"><div id="viewArea">${gridHtml()}</div></div>
     </div>
   `;
 
-  const state = { page: 1, limit: 200, filters: {}, data: [] };
+  const state = { page: 1, limit: 200, filters: {}, data: [], viewMode: 'grid' };
+
+  // Helper: captura filtros dos inputs
+  const captureFilters = () => ({
+    status: sanitizeText(document.getElementById('fStatus').value) || undefined,
+    tipo: sanitizeText(document.getElementById('fTipo').value) || undefined,
+    modulo_id: sanitizeText(document.getElementById('fModulo').value) || undefined,
+    cliente_id: sanitizeText(document.getElementById('fCliente').value) || undefined,
+    tecnico: sanitizeText(document.getElementById('fTecnico').value) || undefined,
+    data_ini: toDate(document.getElementById('fDataIni').value) || undefined,
+    data_fim: toDate(document.getElementById('fDataFim').value) || undefined,
+  });
+  
+  // Default: últimos 7 dias
+  const toYMD = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  const today = new Date();
+  const start7 = new Date(today);
+  start7.setDate(today.getDate() - 7);
+  const iniStr = toYMD(start7);
+  const fimStr = toYMD(today);
+  const iniEl = document.getElementById('fDataIni');
+  const fimEl = document.getElementById('fDataFim');
+  if (iniEl) iniEl.value = iniStr;
+  if (fimEl) fimEl.value = fimStr;
+  state.filters.data_ini = iniStr;
+  state.filters.data_fim = fimStr;
+
+  const renderViewArea = () => {
+    const area = document.getElementById('viewArea');
+    area.innerHTML = state.viewMode === 'grid' ? gridHtml() : kanbanHtml();
+    if (state.viewMode === 'grid') bindGridEvents();
+  };
 
   const apply = async () => {
     const { data, count } = await fetchPendencias(state.filters, state.page, state.limit);
     state.data = data;
-    document.getElementById('pageInfo').textContent = `Página ${state.page} • ${count} registros (virtual ${state.data.length})`;
-    renderVirtual();
+    if (state.viewMode === 'grid') {
+      const pageInfoEl = document.getElementById('pageInfo');
+      if (pageInfoEl) pageInfoEl.textContent = `Página ${state.page} • ${count} registros (virtual ${state.data.length})`;
+      renderVirtual();
+    } else {
+      renderKanban();
+    }
   };
 
   const renderVirtual = () => {
@@ -340,30 +433,150 @@ export async function render() {
     ].join('');
   };
 
+  const renderKanban = () => {
+    const byStatus = Object.create(null);
+    STATUSES.forEach(s => byStatus[s] = []);
+    state.data.forEach(p => {
+      const s = String(p.status || '').trim();
+      (byStatus[s] || (byStatus[s] = [])).push(p);
+    });
+    const cardHtml = (p) => `
+      <div class="card" style="padding:8px;">
+        <div style="font-weight:600; margin-bottom:4px;">${clienteMap[p.cliente_id] ?? p.cliente_id ?? ''} • 
+        <a href="#/pendencia?id=${p.id}" class="link">${p.id}</a>
+        </div>
+        <div class="hint" style="margin-bottom:4px;">${p.tecnico ?? ''}</div>
+        <div style="font-size:12px;">${sanitizeText(p.descricao) || ''}</div>
+      </div>
+    `;
+    STATUSES.forEach(s => {
+      const el = document.getElementById('kb-' + slug(s));
+      if (el) el.innerHTML = (byStatus[s] || []).map(cardHtml).join('');
+    });
+  };
+
+  // Filtros
   const debouncedApply = debounce(apply, 300);
-
-  document.getElementById('applyFilters').addEventListener('click', () => debouncedApply());
+  document.getElementById('applyFilters').addEventListener('click', () => {
+    state.filters = captureFilters();
+    state.page = 1;
+    debouncedApply();
+  });
   document.getElementById('clearFilters').addEventListener('click', () => {
-    state.filters = {}; state.page = 1; debouncedApply();
-  });
-  document.getElementById('prevPage').addEventListener('click', () => { state.page = Math.max(1, state.page - 1); apply(); });
-  document.getElementById('nextPage').addEventListener('click', () => { state.page += 1; apply(); });
-  document.getElementById('virtWrap').addEventListener('scroll', debounce(renderVirtual, 10));
-  document.getElementById('selAll').addEventListener('change', (e) => {
-    document.querySelectorAll('#pTable tbody .sel').forEach(cb => cb.checked = e.target.checked);
+    // Reset visual
+    ['fStatus','fTipo','fModulo','fCliente','fTecnico'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    const t = new Date();
+    const s7 = new Date(t); s7.setDate(t.getDate() - 7);
+    const ini = toYMD(s7); const fim = toYMD(t);
+    if (iniEl) iniEl.value = ini;
+    if (fimEl) fimEl.value = fim;
+    // Reset lógico mantendo “últimos 7 dias”
+    state.filters = { data_ini: ini, data_fim: fim };
+    state.page = 1;
+    debouncedApply();
   });
 
-  const updateFilters = debounce(() => {
-    const filters = {
-      status: sanitizeText(document.getElementById('fStatus').value) || undefined,
-      tipo: sanitizeText(document.getElementById('fTipo').value) || undefined,
-      modulo_id: sanitizeText(document.getElementById('fModulo').value) || undefined,
-      cliente_id: sanitizeText(document.getElementById('fCliente').value) || undefined,
-      tecnico: sanitizeText(document.getElementById('fTecnico').value) || undefined,
-      data_ini: toDate(document.getElementById('fDataIni').value) || undefined,
-      data_fim: toDate(document.getElementById('fDataFim').value) || undefined,
+  // Alternar Grid/Kanban
+  document.getElementById('toggleView').addEventListener('click', () => {
+    state.viewMode = state.viewMode === 'grid' ? 'kanban' : 'grid';
+    renderViewArea();
+    apply();
+  });
+  
+  // “Novo”: abre modal com formulário e salva
+  document.getElementById('novoBtn').addEventListener('click', () => {
+    const modal = openModal(formHtml(clientes));
+    // Popular selects de módulo e técnico
+    const modSel = modal.querySelector('#moduloSel');
+    const tecSel = modal.querySelector('#tecnicoSel');
+    if (modSel) modSel.innerHTML = ['<option value="">Selecione...</option>', ...modulos.map(m => `<option value="${m.id}">${m.nome}</option>`)].join('');
+    if (tecSel) tecSel.innerHTML = ['<option value="">Selecione...</option>', ...usuarios.map(u => `<option value="${u.nome}">${u.nome}</option>`)].join('');
+    // Default: técnico logado e data de hoje
+    const userName = session.get()?.nome || '';
+    if (tecSel) {
+      // Seleciona o técnico logado, garantindo a opção caso não exista
+      const hasUser = Array.from(tecSel.options).some(o => o.value === userName);
+      if (!hasUser && userName) tecSel.insertAdjacentHTML('beforeend', `<option value="${userName}">${userName}</option>`);
+      tecSel.value = userName || '';
+    }
+    const dr = modal.querySelector('input[name="data_relato"]');
+    const toYMD = (d) => {
+      const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
     };
-    state.filters = filters;
+    if (dr) dr.value = toYMD(new Date());
+    const tabs = modal.querySelectorAll('.tab');
+    tabs.forEach(tab => tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.toggle('active', t === tab));
+      modal.querySelectorAll('[data-tab-content]').forEach(c => {
+        c.style.display = c.getAttribute('data-tab-content') === tab.getAttribute('data-tab') ? '' : 'none';
+      });
+    }));
+  
+    // Fechar
+    const closeBtn = modal.querySelector('#closeModalBtn');
+    if (closeBtn && modal.closeModal) closeBtn.addEventListener('click', () => modal.closeModal());
+    // Mostrar/ocultar grupos conforme tipo
+    const tipoSel = modal.querySelector('select[name="tipo"]');
+    const grpPS = modal.querySelector('#grpPS');
+    const grpImpl = modal.querySelector('#grpImpl');
+    const grpAtual = modal.querySelector('#grpAtual');
+    const updateGroupsByType = () => {
+      const tipo = (tipoSel?.value || '').trim();
+      const showPS = tipo === 'Programação' || tipo === 'Suporte';
+      const showImpl = tipo === 'Implantação';
+      const showAtual = tipo === 'Atualizacao';
+      if (grpPS) grpPS.style.display = showPS ? '' : 'none';
+      if (grpImpl) grpImpl.style.display = showImpl ? '' : 'none';
+      if (grpAtual) grpAtual.style.display = showAtual ? '' : 'none';
+    };
+    updateGroupsByType();
+    if (tipoSel) tipoSel.addEventListener('change', updateGroupsByType);
+    // Salvar
+    const form = modal.querySelector('#pForm');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      const payload = {
+        cliente_id: fd.get('cliente_id') || null,
+        modulo_id: Number(fd.get('modulo_id')),
+        tipo: fd.get('tipo'),
+        prioridade: fd.get('prioridade'),
+        status: 'Triagem',
+        tecnico: fd.get('tecnico'),
+        data_relato: fd.get('data_relato'),
+        previsao_conclusao: fd.get('previsao_conclusao') || null,
+        descricao: fd.get('descricao'),
+        link_trello: fd.get('link_trello') || null,
+        // Campos existentes no banco
+        situacao: fd.get('situacao') || null,
+        etapas_reproducao: fd.get('etapas_reproducao') || null,
+        frequencia: fd.get('frequencia') || null,
+        informacoes_adicionais: fd.get('informacoes_adicionais') || null,
+        escopo: fd.get('escopo') || null,
+        objetivo: fd.get('objetivo') || null,
+        recursos_necessarios: fd.get('recursos_necessarios') || null,
+        solucao_orientacao: fd.get('solucao_orientacao') || null,
+      };
+      const supabase = getSupabase();
+      const { error } = await supabase.from('pendencias').insert(payload);
+      const msgEl = modal.querySelector('#pFormMsg');
+      if (error) {
+        if (msgEl) msgEl.textContent = 'Erro ao salvar: ' + error.message;
+        return;
+      }
+      if (msgEl) msgEl.textContent = 'Pendência criada com sucesso.';
+      if (modal.closeModal) modal.closeModal();
+      state.page = 1;
+      await apply();
+    });
+  });
+
+  // Observadores de filtros (change/input)
+  const updateFilters = debounce(() => {
+    state.filters = captureFilters();
     state.page = 1;
     debouncedApply();
   }, 250);
@@ -374,386 +587,202 @@ export async function render() {
     el.addEventListener('input', updateFilters);
   });
 
-  document.getElementById('novoBtn').addEventListener('click', async () => {
-    const { openModal } = await import('./ui.js');
-    const m = openModal(formHtml(clientes));
-    // Tabs: alternância entre Dados e Solução
-    const tabs = m.querySelectorAll('.tab');
-    const contents = m.querySelectorAll('[data-tab-content]');
-    tabs.forEach(btn => btn.addEventListener('click', () => {
-      tabs.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      const tab = btn.getAttribute('data-tab');
-      contents.forEach(c => c.style.display = c.getAttribute('data-tab-content') === tab ? 'block' : 'none');
-    }));
-    // Preencher opções de módulo com nomes
-    const mods = await listModulos();
-    const moduloSel = m.querySelector('#moduloSel');
-    moduloSel.innerHTML = ['<option value="">Selecione...</option>', ...mods.map(m => `<option value="${m.id}">${m.nome}</option>`)].join('');
-    const closeBtn = m.querySelector('#closeModalBtn');
-    if (closeBtn) closeBtn.addEventListener('click', () => { if (typeof m.closeModal === 'function') m.closeModal(); });
-    // Preencher técnicos com base na tabela usuarios
-    const supabaseUsers = getSupabase();
-    const { data: usuarios } = await supabaseUsers.from('usuarios').select('nome').eq('ativo', true).order('nome');
-    const tecnicoSel = m.querySelector('#tecnicoSel');
-    const currentUser = session.get();
-    tecnicoSel.innerHTML = ['<option value="">Selecione...</option>', ...(usuarios ?? []).map(u => `<option value="${u.nome}">${u.nome}</option>`)].join('');
-    if (currentUser?.nome) {
-      const target = String(currentUser.nome).trim().toLowerCase();
-      let matched = false;
-      Array.from(tecnicoSel.options).forEach(opt => {
-        if (String(opt.value).trim().toLowerCase() === target) {
-          tecnicoSel.value = opt.value;
-          matched = true;
-        }
-      });
-      if (!matched && target.length) {
-        const opt = document.createElement('option');
-        opt.value = currentUser.nome;
-        opt.textContent = currentUser.nome;
-        tecnicoSel.insertBefore(opt, tecnicoSel.options[1]);
-        tecnicoSel.value = currentUser.nome;
-      }
-    }
-    // padrões de tipo e prioridade
-    const tipoSelDefault = m.querySelector('select[name="tipo"]');
-    const prioridadeSelDefault = m.querySelector('select[name="prioridade"]');
-    if (tipoSelDefault) tipoSelDefault.value = 'Suporte';
-    if (prioridadeSelDefault) prioridadeSelDefault.value = 'Media';
-    // comportamento adaptativo por tipo
-    const tipoSel = m.querySelector('select[name="tipo"]');
-    const grpPS = m.querySelector('#grpPS');
-    const grpImpl = m.querySelector('#grpImpl');
-    const grpAtual = m.querySelector('#grpAtual');
-    const updateGroups = () => {
-      const t = tipoSel.value;
-      grpPS.style.display = (t === 'Programação' || t === 'Suporte') ? 'block' : 'none';
-      grpImpl.style.display = (t === 'Implantação') ? 'block' : 'none';
-      grpAtual.style.display = (t === 'Atualizacao') ? 'block' : 'none';
-      // required flags
-      const setReq = (names, required) => names.forEach(n => {
-        const el = m.querySelector(`[name="${n}"]`);
-        if (el) el.required = required;
-      });
-      // base: titulo sempre obrigatório
-      setReq(['descricao'], true);
-      // reset all specifics
-      setReq(['situacao','etapas_reproducao','frequencia','informacoes_adicionais','escopo','objetivo','recursos_necessarios','informacoes_implantacao','escopo_atual','motivacao','impacto','requisitos_especificos'], false);
-      if (t === 'Programação' || t === 'Suporte') {
-        setReq(['situacao','etapas_reproducao','frequencia'], true);
-      } else if (t === 'Implantação') {
-        setReq(['escopo','objetivo'], true);
-      } else if (t === 'Atualizacao') {
-        setReq(['escopo_atual','motivacao','impacto'], true);
-      }
-    };
-    tipoSel.addEventListener('change', updateGroups);
-    updateGroups();
-    // Data do relato: default hoje (YYYY-MM-DD)
-    const dr = m.querySelector('input[name="data_relato"]');
-    if (dr) {
-      const d = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      dr.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-    }
-    const form = m.querySelector('#pForm');
-    const msg = m.querySelector('#pFormMsg');
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      msg.textContent = 'Salvando...';
-      const fd = new FormData(form);
-      const tipoVal = sanitizeText(fd.get('tipo'));
-      let obrig = ['descricao'];
-      if (tipoVal === 'Programação' || tipoVal === 'Suporte') {
-        obrig = obrig.concat(['situacao','etapas_reproducao','frequencia']);
-      } else if (tipoVal === 'Implantação') {
-        obrig = obrig.concat(['escopo','objetivo']);
-      } else if (tipoVal === 'Atualizacao') {
-        obrig = obrig.concat(['escopo_atual','motivacao','impacto']);
-      }
-      const faltando = obrig.filter(k => !sanitizeText(fd.get(k)));
-      if (faltando.length) { msg.textContent = 'Preencha os campos obrigatórios: ' + faltando.join(', '); return; }
-      const payload = {
-        cliente_id: Number(fd.get('cliente_id')) || null,
-        modulo_id: Number(fd.get('modulo_id')),
-        tipo: sanitizeText(fd.get('tipo')),
-        descricao: sanitizeText(fd.get('descricao')),
-        link_trello: sanitizeText(fd.get('link_trello')),
-        // Programação & Suporte
-        situacao: sanitizeText(fd.get('situacao')),
-        etapas_reproducao: sanitizeText(fd.get('etapas_reproducao')),
-        frequencia: sanitizeText(fd.get('frequencia')),
-        informacoes_adicionais: sanitizeText(fd.get('informacoes_adicionais')) || sanitizeText(fd.get('impacto')) || sanitizeText(fd.get('informacoes_implantacao')),
-        // Implantação
-        escopo: sanitizeText(fd.get('escopo')) || sanitizeText(fd.get('escopo_atual')),
-        objetivo: sanitizeText(fd.get('objetivo')) || sanitizeText(fd.get('motivacao')),
-        recursos_necessarios: sanitizeText(fd.get('recursos_necessarios')) || sanitizeText(fd.get('requisitos_especificos')),
-        solucao_orientacao: sanitizeText(fd.get('solucao_orientacao')),
-        tecnico: sanitizeText(fd.get('tecnico')),
-        data_relato: toDate(fd.get('data_relato')),
-        previsao_conclusao: toDate(fd.get('previsao_conclusao')),
-        prioridade: sanitizeText(fd.get('prioridade')),
-        status: 'Triagem',
-      };
-      try {
-        const supabase = getSupabase();
-        const { data: created, error } = await supabase.from('pendencias').insert(payload).select('id').single();
-        if (error) throw error;
-        // Criar registro de triagem vinculando técnico do relato
-        const { error: triErr } = await supabase.from('pendencia_triagem').insert({ pendencia_id: created.id, tecnico_relato: payload.tecnico });
-        if (triErr) throw triErr;
-        msg.textContent = 'Salvo com sucesso';
-        form.reset();
-        apply();
-      } catch (err) { msg.textContent = 'Erro: ' + err.message; }
+  // Eventos exclusivos do Grid (com guardas)
+  const bindGridEvents = () => {
+    const virtWrap = document.getElementById('virtWrap');
+    if (virtWrap) virtWrap.addEventListener('scroll', debounce(renderVirtual, 10));
+    const selAll = document.getElementById('selAll');
+    if (selAll) selAll.addEventListener('change', (e) => {
+      document.querySelectorAll('#pTable tbody .sel').forEach(cb => cb.checked = e.target.checked);
     });
-  });
-
-  const inlineForm = document.getElementById('pForm');
-  if (inlineForm) {
-    inlineForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const msg = document.getElementById('pFormMsg');
-      msg.textContent = 'Salvando...';
-      const form = new FormData(e.target);
-      const payload = {
-        cliente_id: Number(form.get('cliente_id')) || null,
-        modulo_id: Number(form.get('modulo_id')),
-        tipo: sanitizeText(form.get('tipo')),
-        descricao: sanitizeText(form.get('descricao')),
-        link_trello: sanitizeText(form.get('link_trello')),
-        solucao_orientacao: sanitizeText(form.get('solucao_orientacao')),
-        tecnico: sanitizeText(form.get('tecnico')),
-        data_relato: toDate(form.get('data_relato')),
-        previsao_conclusao: toDate(form.get('previsao_conclusao')),
-        prioridade: sanitizeText(form.get('prioridade')),
-        status: sanitizeText(form.get('status')),
-      };
-      try {
+    const prevBtn = document.getElementById('prevPage');
+    const nextBtn = document.getElementById('nextPage');
+    if (prevBtn) prevBtn.addEventListener('click', () => { state.page = Math.max(1, state.page - 1); apply(); });
+    if (nextBtn) nextBtn.addEventListener('click', () => { state.page += 1; apply(); });
+    const pTable = document.querySelector('#pTable');
+    if (pTable) {
+      pTable.addEventListener('click', async (e) => {
+        const act = e.target.getAttribute('data-act');
+        if (!act) return;
+        const tr = e.target.closest('tr');
+        const id = tr.getAttribute('data-id');
         const supabase = getSupabase();
-        const { error } = await supabase.from('pendencias').insert(payload);
-        if (error) throw error;
-        msg.textContent = 'Salvo com sucesso';
-        e.target.reset();
-        apply();
-      } catch (err) {
-        msg.textContent = 'Erro: ' + err.message;
-      }
-    });
-  }
 
-  document.querySelector('#pTable').addEventListener('click', async (e) => {
-    const act = e.target.getAttribute('data-act');
-    if (!act) return;
-    const tr = e.target.closest('tr');
-    const id = tr.getAttribute('data-id');
-    const supabase = getSupabase();
-    if (act === 'del') {
-      const ok = await confirmDialog(`Você está prestes a excluir a pendência ${id}. Esta ação é permanente.`);
-      if (!ok) return;
-      await supabase.from('pendencias').delete().eq('id', id);
-      apply();
-    }
-    if (act === 'res') {
-      const ok = await confirmDialog(`Você irá resolver a pendência ${id}. Você pode registrar uma solução/orientação antes de concluir.`);
-      if (!ok) return;
-      // Abrir modal de edição focado apenas em Solução/Orientação
-      const { openModal } = await import('./ui.js');
-      const m = openModal(formHtml(clientes));
-      m.querySelector('h3').textContent = `Resolver Pendência #${id}`;
-      const closeBtn = m.querySelector('#closeModalBtn');
-      if (closeBtn) closeBtn.addEventListener('click', () => { if (typeof m.closeModal === 'function') m.closeModal(); });
-      // Preencher opções de módulo e técnicos, mas desabilitar edição
-      const moduloSel = m.querySelector('#moduloSel');
-      moduloSel.innerHTML = ['<option value="">Selecione...</option>', ...Object.entries(moduloMap).map(([val, nome]) => `<option value="${val}">${nome}</option>`)].join('');
-      const supabaseUsers = getSupabase();
-      const { data: usuariosEdit } = await supabaseUsers.from('usuarios').select('nome').eq('ativo', true).order('nome');
-      const tecnicoSel = m.querySelector('#tecnicoSel');
-      tecnicoSel.innerHTML = ['<option value="">Selecione...</option>', ...(usuariosEdit ?? []).map(u => `<option value="${u.nome}">${u.nome}</option>`)].join('');
-      // Carregar pendência e preencher campos
-      const { data: pend } = await supabase.from('pendencias').select('*').eq('id', id).maybeSingle();
-      // Atualizar cabeçalho com título para ajudar o operador
-      if (pend && pend.descricao) {
-        const h = m.querySelector('h3');
-        if (h) h.textContent = `Resolver Pendência #${id} — ${pend.descricao}`;
-      }
-      const setVal = (name, value) => { const el = m.querySelector(`[name="${name}"]`); if (el && value !== undefined && value !== null) el.value = value; };
-      ['cliente_id','modulo_id','tipo','prioridade','tecnico','data_relato','previsao_conclusao','descricao','link_trello','situacao','etapas_reproducao','frequencia','informacoes_adicionais','escopo','objetivo','recursos_necessarios'].forEach(n => setVal(n, pend?.[n] ?? ''));
-      setVal('informacoes_implantacao', pend?.informacoes_adicionais ?? '');
-      setVal('escopo_atual', pend?.escopo ?? '');
-      setVal('motivacao', pend?.objetivo ?? '');
-      setVal('impacto', pend?.informacoes_adicionais ?? '');
-      setVal('requisitos_especificos', pend?.recursos_necessarios ?? '');
-      setVal('solucao_orientacao', pend?.solucao_orientacao ?? '');
-      // Status exibido e bloqueado
-      const statusSel = m.querySelector('select[name="status"]');
-      if (statusSel) { statusSel.disabled = true; statusSel.innerHTML = `<option selected>${pend?.status ?? 'Triagem'}</option>`; }
-      // Tabs: mostrar apenas Solução
-      const tabs = m.querySelectorAll('.tab');
-      const contents = m.querySelectorAll('[data-tab-content]');
-      tabs.forEach(b => b.classList.remove('active'));
-      const solBtn = Array.from(tabs).find(b => b.getAttribute('data-tab') === 'solucao');
-      if (solBtn) solBtn.classList.add('active');
-      contents.forEach(c => c.style.display = c.getAttribute('data-tab-content') === 'solucao' ? 'block' : 'none');
-      // Desabilitar edição de todos os campos, exceto solucao_orientacao
-      Array.from(m.querySelectorAll('input, select, textarea')).forEach(el => {
-        if (el.getAttribute('name') !== 'solucao_orientacao') el.disabled = true;
-      });
-      const solEl = m.querySelector('[name="solucao_orientacao"]');
-      if (solEl) { solEl.required = true; solEl.focus(); }
-      const form = m.querySelector('#pForm');
-      const msg = m.querySelector('#pFormMsg');
-      form.addEventListener('submit', async (ev) => {
-        ev.preventDefault();
-        msg.textContent = 'Salvando e resolvendo...';
-        const fd = new FormData(form);
-        const textoSolucao = sanitizeText(fd.get('solucao_orientacao'));
-        if (!textoSolucao) { msg.textContent = 'Informe a solução/orientação antes de resolver.'; return; }
-        const payload = {
-          solucao_orientacao: textoSolucao,
-          status: 'Resolvido',
-        };
-        try {
-          // buscar status anterior para histórico
-          const { data: prev } = await supabase.from('pendencias').select('status, tecnico').eq('id', id).maybeSingle();
-          const usuario = session.get()?.nome || prev?.tecnico || '—';
-          const { error } = await supabase.from('pendencias').update(payload).eq('id', id);
-          if (error) throw error;
-          await supabase.from('pendencia_historicos').insert({
-            pendencia_id: id, acao: 'Pendência resolvida', usuario,
-            campo_alterado: 'status', valor_anterior: prev?.status ?? null, valor_novo: 'Resolvido'
+        if (act === 'edit') {
+          // Abrir modal de edição com dados da pendência
+          const { data: pend } = await supabase.from('pendencias').select('*').eq('id', id).maybeSingle();
+          const modal = openModal(formHtml(clientes));
+          // Título: Editar Pendência
+          const h3 = modal.querySelector('h3');
+          if (h3) h3.textContent = `Editar Pendência`;
+          // Popular selects de módulo e técnico
+          const modSel = modal.querySelector('#moduloSel');
+          const tecSel = modal.querySelector('#tecnicoSel');
+          if (modSel) modSel.innerHTML = ['<option value="">Selecione...</option>', ...modulos.map(m => `<option value="${m.id}">${m.nome}</option>`)].join('');
+          if (tecSel) tecSel.innerHTML = ['<option value="">Selecione...</option>', ...usuarios.map(u => `<option value="${u.nome}">${u.nome}</option>`)].join('');
+          // Preencher valores
+          const setVal = (sel, val) => { if (sel && val != null) sel.value = String(val); };
+          setVal(modal.querySelector('select[name="cliente_id"]'), pend?.cliente_id ?? '');
+          setVal(modSel, pend?.modulo_id ?? '');
+          setVal(modal.querySelector('select[name="tipo"]'), pend?.tipo ?? '');
+          setVal(modal.querySelector('select[name="prioridade"]'), pend?.prioridade ?? '');
+          setVal(tecSel, pend?.tecnico ?? '');
+          const toYMD = (d) => {
+            if (!d) return '';
+            const dd = new Date(d);
+            if (isNaN(dd.getTime())) return '';
+            const y = dd.getFullYear(), m = String(dd.getMonth() + 1).padStart(2, '0'), day = String(dd.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+          };
+          const dr = modal.querySelector('input[name="data_relato"]');
+          const pc = modal.querySelector('input[name="previsao_conclusao"]');
+          if (dr) dr.value = toYMD(pend?.data_relato);
+          if (pc) pc.value = toYMD(pend?.previsao_conclusao);
+          setVal(modal.querySelector('input[name="descricao"]'), pend?.descricao ?? '');
+          setVal(modal.querySelector('input[name="link_trello"]'), pend?.link_trello ?? '');
+          // Campos adicionais
+          setVal(modal.querySelector('textarea[name="situacao"]'), pend?.situacao ?? '');
+          setVal(modal.querySelector('textarea[name="etapas_reproducao"]'), pend?.etapas_reproducao ?? '');
+          setVal(modal.querySelector('input[name="frequencia"]'), pend?.frequencia ?? '');
+          setVal(modal.querySelector('textarea[name="informacoes_adicionais"]'), pend?.informacoes_adicionais ?? '');
+          setVal(modal.querySelector('textarea[name="escopo"]'), pend?.escopo ?? '');
+          setVal(modal.querySelector('textarea[name="objetivo"]'), pend?.objetivo ?? '');
+          setVal(modal.querySelector('textarea[name="recursos_necessarios"]'), pend?.recursos_necessarios ?? '');
+          setVal(modal.querySelector('textarea[name="solucao_orientacao"]'), pend?.solucao_orientacao ?? '');
+          // Status apenas exibição
+          const statusSel = modal.querySelector('select[name="status"]');
+          if (statusSel) {
+            statusSel.innerHTML = `<option selected>${pend?.status || 'Triagem'}</option>`;
+            statusSel.disabled = true;
+          }
+          // Tabs e fechamento
+          const tabs = modal.querySelectorAll('.tab');
+          tabs.forEach(tab => tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.toggle('active', t === tab));
+            modal.querySelectorAll('[data-tab-content]').forEach(c => {
+              c.style.display = c.getAttribute('data-tab-content') === tab.getAttribute('data-tab') ? '' : 'none';
+            });
+          }));
+          const closeBtn = modal.querySelector('#closeModalBtn');
+          if (closeBtn && modal.closeModal) closeBtn.addEventListener('click', () => modal.closeModal());
+          // Mostrar/ocultar grupos conforme tipo
+          const tipoSel = modal.querySelector('select[name="tipo"]');
+          const grpPS = modal.querySelector('#grpPS');
+          const grpImpl = modal.querySelector('#grpImpl');
+          const grpAtual = modal.querySelector('#grpAtual');
+          const updateGroupsByType = () => {
+            const tipo = (tipoSel?.value || '').trim();
+            const showPS = tipo === 'Programação' || tipo === 'Suporte';
+            const showImpl = tipo === 'Implantação';
+            const showAtual = tipo === 'Atualizacao';
+            if (grpPS) grpPS.style.display = showPS ? '' : 'none';
+            if (grpImpl) grpImpl.style.display = showImpl ? '' : 'none';
+            if (grpAtual) grpAtual.style.display = showAtual ? '' : 'none';
+          };
+          updateGroupsByType();
+          if (tipoSel) tipoSel.addEventListener('change', updateGroupsByType);
+          // Salvar (update)
+          const form = modal.querySelector('#pForm');
+          const msgEl = modal.querySelector('#pFormMsg');
+          form.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            const fd = new FormData(form);
+            const payload = {
+              cliente_id: fd.get('cliente_id') || null,
+              modulo_id: Number(fd.get('modulo_id')),
+              tipo: fd.get('tipo'),
+              prioridade: fd.get('prioridade'),
+              tecnico: fd.get('tecnico'),
+              data_relato: fd.get('data_relato'),
+              previsao_conclusao: fd.get('previsao_conclusao') || null,
+              descricao: fd.get('descricao'),
+              link_trello: fd.get('link_trello') || null,
+              // Campos existentes
+              situacao: fd.get('situacao') || null,
+              etapas_reproducao: fd.get('etapas_reproducao') || null,
+              frequencia: fd.get('frequencia') || null,
+              informacoes_adicionais: fd.get('informacoes_adicionais') || null,
+              escopo: fd.get('escopo') || null,
+              objetivo: fd.get('objetivo') || null,
+              recursos_necessarios: fd.get('recursos_necessarios') || null,
+              solucao_orientacao: fd.get('solucao_orientacao') || null,
+            };
+            const { error } = await supabase.from('pendencias').update(payload).eq('id', id);
+            if (error) {
+              if (msgEl) msgEl.textContent = 'Erro ao salvar: ' + error.message;
+              return;
+            }
+            if (msgEl) msgEl.textContent = 'Pendência atualizada com sucesso.';
+            if (modal.closeModal) modal.closeModal();
+            apply();
           });
-          msg.textContent = 'Resolvido com sucesso';
+          return;
+        }
+        if (act === 'del') {
+          const ok = await confirmDialog(`Você está prestes a excluir a pendência ${id}. Esta ação é permanente.`);
+          if (!ok) return;
+          await supabase.from('pendencias').delete().eq('id', id);
           apply();
-          if (typeof m.closeModal === 'function') m.closeModal();
-        } catch (err) {
-          msg.textContent = 'Erro: ' + err.message;
+          return;
+        }
+        if (act === 'res') {
+          const { data: prev } = await supabase
+              .from('pendencias')
+              .select('status, tecnico, descricao')
+              .eq('id', id)
+              .maybeSingle();
+          
+          const formatPendId = (val) => {
+              const s = String(val ?? '');
+              const raw = s.replace(/^ID-/, '');
+              return 'ID-' + String(raw).padStart(5, '0');
+          };
+          const titulo = sanitizeText(prev?.descricao || '');
+          
+          const modal = openModal(`
+              <div class="card">
+                <h3>Registrar Solução — ${formatPendId(id)}${titulo ? ` • ${titulo}` : ''}</h3>
+                <form id="resolveForm" class="form">
+                  <div class="field">
+                    <label>Solução / Orientação</label>
+                    <textarea class="input" name="solucao_orientacao" placeholder="Descreva a solução aplicada ou orientação"></textarea>
+                  </div>
+                  <div class="toolbar" style="justify-content:flex-end">
+                    <button class="btn" type="button" id="cancelResolve">Cancelar</button>
+                    <button class="btn success" type="submit">Salvar e Resolver</button>
+                  </div>
+                </form>
+              </div>
+          `);
+          
+          const cancelBtn = modal.querySelector('#cancelResolve');
+          if (cancelBtn && modal.closeModal) cancelBtn.addEventListener('click', () => modal.closeModal());
+          
+          const form = modal.querySelector('#resolveForm');
+          form.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            // Confirmação padrão antes de salvar e resolver
+            const ok = await confirmDialog(`Confirmar resolução da pendência ${formatPendId(id)}${titulo ? ` • ${titulo}` : ''}?`);
+            if (!ok) return;
+          
+            const fd = new FormData(form);
+            const sol = fd.get('solucao_orientacao') || null;
+          
+            const usuario = session.get()?.nome || prev?.tecnico || '—';
+            await supabase.from('pendencias').update({ status: 'Resolvido', solucao_orientacao: sol }).eq('id', id);
+            await supabase.from('pendencia_historicos').insert({
+              pendencia_id: id, acao: 'Pendência resolvida', usuario,
+              campo_alterado: 'status', valor_anterior: prev?.status ?? null, valor_novo: 'Resolvido'
+            });
+            if (modal.closeModal) modal.closeModal();
+            apply();
+          });
+          return;
         }
       });
     }
-    if (act === 'edit') {
-      const { openModal } = await import('./ui.js');
-      const m = openModal(formHtml(clientes));
-      m.querySelector('h3').textContent = `Editar Pendência #${id}`;
-      const closeBtn = m.querySelector('#closeModalBtn');
-      if (closeBtn) closeBtn.addEventListener('click', () => { if (typeof m.closeModal === 'function') m.closeModal(); });
-      // opções de módulo
-      const moduloSel = m.querySelector('#moduloSel');
-      moduloSel.innerHTML = ['<option value="">Selecione...</option>', ...Object.entries(moduloMap).map(([val, nome]) => `<option value="${val}">${nome}</option>`)].join('');
-      // opções de técnicos
-      const supabaseUsers = getSupabase();
-      const { data: usuariosEdit } = await supabaseUsers.from('usuarios').select('nome').eq('ativo', true).order('nome');
-      const tecnicoSel = m.querySelector('#tecnicoSel');
-      tecnicoSel.innerHTML = ['<option value="">Selecione...</option>', ...(usuariosEdit ?? []).map(u => `<option value="${u.nome}">${u.nome}</option>`)].join('');
-      // carregar pendência
-      const { data: pend } = await supabase.from('pendencias').select('*').eq('id', id).maybeSingle();
-      const setVal = (name, value) => { const el = m.querySelector(`[name="${name}"]`); if (el && value !== undefined && value !== null) el.value = value; };
-      setVal('cliente_id', pend?.cliente_id ?? '');
-      setVal('modulo_id', pend?.modulo_id ?? '');
-      setVal('tipo', pend?.tipo ?? 'Suporte');
-      setVal('prioridade', pend?.prioridade ?? 'Media');
-      setVal('tecnico', pend?.tecnico ?? '');
-      setVal('data_relato', pend?.data_relato ?? '');
-      setVal('previsao_conclusao', pend?.previsao_conclusao ?? '');
-      setVal('descricao', pend?.descricao ?? '');
-      setVal('link_trello', pend?.link_trello ?? '');
-      setVal('situacao', pend?.situacao ?? '');
-      setVal('etapas_reproducao', pend?.etapas_reproducao ?? '');
-      setVal('frequencia', pend?.frequencia ?? '');
-      // Valores comuns salvos na tabela
-      setVal('informacoes_adicionais', pend?.informacoes_adicionais ?? '');
-      setVal('escopo', pend?.escopo ?? '');
-      setVal('objetivo', pend?.objetivo ?? '');
-      setVal('recursos_necessarios', pend?.recursos_necessarios ?? '');
-      // Preencher campos específicos por tipo a partir dos campos comuns
-      if (pend?.tipo === 'Implantação') {
-        // Campo de "Informações" da implantação é salvo em informacoes_adicionais
-        setVal('informacoes_implantacao', pend?.informacoes_adicionais ?? '');
-      } else if (pend?.tipo === 'Atualizacao') {
-        // Mapear comuns -> específicos para atualização
-        setVal('escopo_atual', pend?.escopo ?? '');
-        setVal('motivacao', pend?.objetivo ?? '');
-        setVal('impacto', pend?.informacoes_adicionais ?? '');
-        setVal('requisitos_especificos', pend?.recursos_necessarios ?? '');
-      }
-      // Novo campo: solução/orientação
-      setVal('solucao_orientacao', pend?.solucao_orientacao ?? '');
-      // status apenas exibe (não editável)
-      const statusSel = m.querySelector('select[name="status"]');
-      if (statusSel) { statusSel.disabled = true; statusSel.innerHTML = `<option selected>${pend?.status ?? 'Triagem'}</option>`; }
-      // habilitar grupos e required
-      const tipoSel = m.querySelector('select[name="tipo"]');
-      const grpPS = m.querySelector('#grpPS');
-      const grpImpl = m.querySelector('#grpImpl');
-      const grpAtual = m.querySelector('#grpAtual');
-      const updateGroupsEdit = () => {
-        const t = tipoSel.value;
-        grpPS.style.display = (t === 'Programação' || t === 'Suporte') ? 'block' : 'none';
-        grpImpl.style.display = (t === 'Implantação') ? 'block' : 'none';
-        grpAtual.style.display = (t === 'Atualizacao') ? 'block' : 'none';
-        const setReq = (names, required) => names.forEach(n => { const el = m.querySelector(`[name="${n}"]`); if (el) el.required = required; });
-        setReq(['descricao'], true);
-        setReq(['situacao','etapas_reproducao','frequencia','informacoes_adicionais','escopo','objetivo','recursos_necessarios','informacoes_implantacao','escopo_atual','motivacao','impacto','requisitos_especificos'], false);
-        if (t === 'Programação' || t === 'Suporte') setReq(['situacao','etapas_reproducao','frequencia'], true);
-        else if (t === 'Implantação') setReq(['escopo','objetivo'], true);
-        else if (t === 'Atualizacao') setReq(['escopo_atual','motivacao','impacto'], true);
-      };
-      tipoSel.addEventListener('change', updateGroupsEdit);
-      updateGroupsEdit();
-      const form = m.querySelector('#pForm');
-      const msg = m.querySelector('#pFormMsg');
-      // Tabs comportamento para edição
-      const tabs = m.querySelectorAll('.tab');
-      const contents = m.querySelectorAll('[data-tab-content]');
-      tabs.forEach(btn => btn.addEventListener('click', () => {
-        tabs.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const tab = btn.getAttribute('data-tab');
-        contents.forEach(c => c.style.display = c.getAttribute('data-tab-content') === tab ? 'block' : 'none');
-      }));
-      form.addEventListener('submit', async (ev) => {
-        ev.preventDefault();
-        msg.textContent = 'Salvando...';
-        const fd = new FormData(form);
-        const tipoVal = sanitizeText(fd.get('tipo'));
-        let obrig = ['descricao'];
-        if (tipoVal === 'Programação' || tipoVal === 'Suporte') obrig = obrig.concat(['situacao','etapas_reproducao','frequencia']);
-        else if (tipoVal === 'Implantação') obrig = obrig.concat(['escopo','objetivo']);
-        else if (tipoVal === 'Atualizacao') obrig = obrig.concat(['escopo_atual','motivacao','impacto']);
-        const faltando = obrig.filter(k => !sanitizeText(fd.get(k)));
-        if (faltando.length) { msg.textContent = 'Preencha os campos obrigatórios: ' + faltando.join(', '); return; }
-        const payload = {
-          cliente_id: Number(fd.get('cliente_id')) || null,
-          modulo_id: Number(fd.get('modulo_id')),
-          tipo: sanitizeText(fd.get('tipo')),
-          descricao: sanitizeText(fd.get('descricao')),
-          link_trello: sanitizeText(fd.get('link_trello')),
-          situacao: sanitizeText(fd.get('situacao')),
-          etapas_reproducao: sanitizeText(fd.get('etapas_reproducao')),
-          frequencia: sanitizeText(fd.get('frequencia')),
-          informacoes_adicionais: sanitizeText(fd.get('informacoes_adicionais')) || sanitizeText(fd.get('impacto')) || sanitizeText(fd.get('informacoes_implantacao')),
-          escopo: sanitizeText(fd.get('escopo')) || sanitizeText(fd.get('escopo_atual')),
-          objetivo: sanitizeText(fd.get('objetivo')) || sanitizeText(fd.get('motivacao')),
-          recursos_necessarios: sanitizeText(fd.get('recursos_necessarios')) || sanitizeText(fd.get('requisitos_especificos')),
-          solucao_orientacao: sanitizeText(fd.get('solucao_orientacao')),
-          tecnico: sanitizeText(fd.get('tecnico')),
-          data_relato: toDate(fd.get('data_relato')),
-          previsao_conclusao: toDate(fd.get('previsao_conclusao')),
-          prioridade: sanitizeText(fd.get('prioridade')),
-        };
-        try {
-          const { error } = await supabase.from('pendencias').update(payload).eq('id', id);
-          if (error) throw error;
-          await supabase.from('pendencia_triagem').update({ tecnico_relato: payload.tecnico }).eq('pendencia_id', id);
-          msg.textContent = 'Salvo com sucesso';
-          apply();
-          if (typeof m.closeModal === 'function') m.closeModal();
-        } catch (err) {
-          msg.textContent = 'Erro: ' + err.message;
-        }
-      });
-    }
-  });
+  };
 
+  bindGridEvents();
   apply();
 }

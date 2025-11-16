@@ -311,6 +311,7 @@ ADD CONSTRAINT pendencias_status_check CHECK (
         'Aguardando Aceite'::character varying,
         'Rejeitada'::character varying,
         'Em Andamento'::character varying,
+        -- constraint/lista de status válidos (ajuste de rótulo)
         'Aguardando Teste'::character varying,
         'Resolvido'::character varying
       ]
