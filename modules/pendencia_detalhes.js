@@ -1,5 +1,7 @@
 // topo: imports
 import { viewMount, confirmDialog, openModal } from './ui.js';
+import { TRELLO_KEY, TRELLO_TOKEN } from '../config.js';
+import { storage } from '../utils/storage.js';
 import { getSupabase } from '../supabaseClient.js';
 import { session } from '../utils/session.js';
 import { debounce } from '../utils/debounce.js';
@@ -236,7 +238,11 @@ const fmt = (dt) => formatDateTimeBr(dt);
             </tbody>
           </table>
 
-          ${pend?.link_trello ? `<div style="margin-top:8px"><a class="btn" href="${pend.link_trello}" target="_blank" rel="noopener">Abrir no Trello</a></div>` : ''}
+          <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+            ${pend?.link_trello ? `<a class="btn" href="${pend.link_trello}" target="_blank" rel="noopener">Abrir no Trello</a>` : ''}
+            <button class="btn trello" id="btnTrello">Gerar Card Trello</button>
+            <button class="btn" id="btnVerCard">Ver Card Trello</button>
+          </div>
         </div>
 
         <div class="card">
@@ -298,6 +304,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
           <h3>💡 Solução / Orientação</h3>
           <div style="white-space:pre-wrap;">${pend?.solucao_orientacao ? pend.solucao_orientacao : '<span style="opacity:0.7">Não informado</span>'}</div>
         </div>
+        <div id="trelloPreviewSlot"></div>
         <div class="card" style="min-height:320px">
           <h3>Gráfico Timeline por Status</h3>
           <div style="padding:12px;">
@@ -333,11 +340,232 @@ const fmt = (dt) => formatDateTimeBr(dt);
     if (e1) { alert('Erro designar: ' + e1.message); return; }
     const { error: e2 } = await supabase.from('pendencias').update({ status: 'Aguardando Aceite' }).eq('id', id);
     if (e2) { alert('Erro status: ' + e2.message); return; }
-    await supabase.from('pendencia_historicos').insert({
+  await supabase.from('pendencia_historicos').insert({
       pendencia_id: id, acao: 'Designado para triagem', usuario: session.get()?.nome || nome,
       campo_alterado: 'tecnico_triagem', valor_anterior: tri?.tecnico_triagem ?? null, valor_novo: nome
     });
     render();
+  });
+
+  // Trello: gerar card
+  const btnTrello = document.getElementById('btnTrello');
+  if (btnTrello) btnTrello.addEventListener('click', async () => {
+    const trelloReady = Boolean(TRELLO_KEY) && Boolean(TRELLO_TOKEN);
+    const persistTTL = 90 * 24 * 60 * 60 * 1000; // 90 dias
+    const clienteNome = (clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome ?? pend?.cliente_id ?? '';
+    const moduloNome = (modulos || []).find(m => m.id === pend?.modulo_id)?.nome ?? pend?.modulo_id ?? '';
+    const cardTitle = `${formatPendId(pend?.id)}: ${pend?.descricao ?? ''}`.trim();
+    const responsavelNome = pend?.tecnico || tri?.tecnico_responsavel || tri?.tecnico_relato || session.get()?.nome || '—';
+    const buildDesc = () => {
+      const linhas = [
+        `Cliente: ${clienteNome}`,
+        `Módulo: ${moduloNome}`,
+        `Tipo: ${pend?.tipo ?? '—'}`,
+        `Prioridade: ${pend?.prioridade ?? '—'}`,
+        `Status: ${pend?.status ?? '—'}`,
+        `Data do relato: ${formatDateBr(pend?.data_relato)}`,
+        `Técnico responsável: ${responsavelNome}`,
+        '',
+        'Título:',
+        `${pend?.descricao ?? ''}`,
+        '',
+      ];
+
+      const tipo = String(pend?.tipo || '').trim();
+      if (tipo === 'Programação' || tipo === 'Suporte') {
+        linhas.push(
+          'Situação:',
+          `${pend?.situacao ?? '—'}`,
+          '',
+          'Etapas:',
+          `${pend?.etapas_reproducao ?? '—'}`,
+          '',
+          'Frequência:',
+          `${pend?.frequencia ?? '—'}`,
+          '',
+          'Informações:',
+          `${pend?.informacoes_adicionais ?? '—'}`,
+          ''
+        );
+      } else if (tipo === 'Implantação') {
+        linhas.push(
+          'Escopo:',
+          `${pend?.escopo ?? '—'}`,
+          '',
+          'Objetivo:',
+          `${pend?.objetivo ?? '—'}`,
+          '',
+          'Recursos:',
+          `${pend?.recursos_necessarios ?? '—'}`,
+          '',
+          'Informações:',
+          `${pend?.informacoes_adicionais ?? '—'}`,
+          ''
+        );
+      } else if (tipo === 'Atualizacao') { // sem acento para compatibilidade com base
+        linhas.push(
+          'Escopo:',
+          `${pend?.escopo ?? '—'}`,
+          '',
+          'Motivação:',
+          `${pend?.objetivo ?? '—'}`,
+          '',
+          'Impacto:',
+          `${pend?.informacoes_adicionais ?? '—'}`,
+          '',
+          'Requisitos específicos:',
+          `${pend?.recursos_necessarios ?? '—'}`,
+          ''
+        );
+      }
+
+      linhas.push('Solução/Orientação:', `${pend?.solucao_orientacao ?? '—'}`);
+      return linhas.join('\n');
+    };
+    const initialDesc = buildDesc();
+
+    const m = openModal(`
+      <div style="padding:12px;">
+        <h3>Gerar Card Trello</h3>
+        <div class="notice" style="margin-bottom:12px;">
+          Revise os dados e escolha o Board e a Lista onde o card será criado.
+        </div>
+        <div class="row">
+          <div class="col-4 field">
+            <label>Área de trabalho</label>
+            <select id="trelloOrgSel" class="input"><option value="">${trelloReady ? 'Carregando áreas...' : 'Informe TRELLO_KEY/TRELLO_TOKEN em config.js'}</option></select>
+          </div>
+          <div class="col-6 field">
+            <label>Board</label>
+            <select id="trelloBoardSel" class="input"><option value="">${trelloReady ? 'Carregando boards...' : 'Informe TRELLO_KEY/TRELLO_TOKEN em config.js'}</option></select>
+          </div>
+          <div class="col-6 field">
+            <label>Lista</label>
+            <select id="trelloListSel" class="input" disabled><option value="">Selecione o board primeiro</option></select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Título do Card</label>
+          <input id="trelloCardName" class="input" value="${sanitizeText(cardTitle)}" />
+        </div>
+        <div class="field">
+          <label>Descrição</label>
+          <textarea id="trelloCardDesc" class="input" style="min-height:140px;">${sanitizeText(initialDesc)}</textarea>
+        </div>
+        <div class="toolbar" style="justify-content:flex-end; gap:8px;">
+          <button class="btn" id="trelloCancel">Cancelar</button>
+          <button class="btn trello" id="trelloCreate" ${trelloReady ? '' : 'disabled'}>Criar Card</button>
+        </div>
+        <div id="trelloMsg" class="hint" style="margin-top:8px;"></div>
+      </div>
+    `);
+    const close = () => { if (typeof m.closeModal === 'function') m.closeModal(); };
+    m.querySelector('#trelloCancel').addEventListener('click', close);
+    const msgEl = m.querySelector('#trelloMsg');
+    const orgSel = m.querySelector('#trelloOrgSel');
+    const boardSel = m.querySelector('#trelloBoardSel');
+    const listSel = m.querySelector('#trelloListSel');
+    const nameEl = m.querySelector('#trelloCardName');
+    const descEl = m.querySelector('#trelloCardDesc');
+
+    const safeFetch = async (url) => {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    };
+
+    if (trelloReady) {
+      try {
+        msgEl.textContent = 'Carregando áreas de trabalho...';
+        const orgs = await safeFetch(`https://api.trello.com/1/members/me/organizations?fields=displayName&key=${encodeURIComponent(TRELLO_KEY)}&token=${encodeURIComponent(TRELLO_TOKEN)}`);
+        orgSel.innerHTML = ['<option value="">Selecione...</option>', ...(orgs || []).map(o => `<option value="${o.id}">${sanitizeText(o.displayName || o.name)}</option>`)].join('');
+        msgEl.textContent = '';
+        orgSel.disabled = false;
+        // Preseleciona última área utilizada
+        const lastOrg = storage.get('trello_last_org', '');
+        if (lastOrg && Array.from(orgSel.options).some(o => o.value === lastOrg)) {
+          orgSel.value = lastOrg;
+          // Dispara carregamento de boards
+          orgSel.dispatchEvent(new Event('change'));
+        }
+      } catch (err) {
+        msgEl.textContent = 'Erro ao carregar áreas: ' + err.message;
+      }
+      orgSel.addEventListener('change', async () => {
+        const idOrg = orgSel.value;
+        storage.set('trello_last_org', idOrg, persistTTL);
+        boardSel.disabled = true;
+        boardSel.innerHTML = '<option value="">Carregando boards...</option>';
+        listSel.disabled = true;
+        listSel.innerHTML = '<option value="">Selecione o board primeiro</option>';
+        if (!idOrg) { boardSel.disabled = true; boardSel.innerHTML = '<option value="">Selecione a área primeiro</option>'; return; }
+        try {
+          const boards = await safeFetch(`https://api.trello.com/1/organizations/${encodeURIComponent(idOrg)}/boards?fields=name&key=${encodeURIComponent(TRELLO_KEY)}&token=${encodeURIComponent(TRELLO_TOKEN)}`);
+          boardSel.innerHTML = ['<option value="">Selecione...</option>', ...(boards || []).map(b => `<option value="${b.id}">${sanitizeText(b.name)}</option>`)].join('');
+          boardSel.disabled = false;
+          msgEl.textContent = '';
+          // Preseleciona último board utilizado
+          const lastBoard = storage.get('trello_last_board', '');
+          if (lastBoard && Array.from(boardSel.options).some(o => o.value === lastBoard)) {
+            boardSel.value = lastBoard;
+            // Dispara carregamento de listas
+            boardSel.dispatchEvent(new Event('change'));
+          }
+        } catch (err) {
+          msgEl.textContent = 'Erro ao carregar boards: ' + err.message;
+        }
+      });
+      boardSel.addEventListener('change', async () => {
+        const idBoard = boardSel.value;
+        storage.set('trello_last_board', idBoard, persistTTL);
+        listSel.disabled = true;
+        listSel.innerHTML = '<option value="">Carregando listas...</option>';
+        if (!idBoard) { listSel.disabled = true; listSel.innerHTML = '<option value="">Selecione o board primeiro</option>'; return; }
+        try {
+          const lists = await safeFetch(`https://api.trello.com/1/boards/${encodeURIComponent(idBoard)}/lists?fields=name&key=${encodeURIComponent(TRELLO_KEY)}&token=${encodeURIComponent(TRELLO_TOKEN)}`);
+          listSel.innerHTML = ['<option value="">Selecione...</option>', ...(lists || []).map(l => `<option value="${l.id}">${sanitizeText(l.name)}</option>`)].join('');
+          listSel.disabled = false;
+          msgEl.textContent = '';
+          // Preseleciona última lista utilizada
+          const lastList = storage.get('trello_last_list', '');
+          if (lastList && Array.from(listSel.options).some(o => o.value === lastList)) {
+            listSel.value = lastList;
+          }
+        } catch (err) {
+          msgEl.textContent = 'Erro ao carregar listas: ' + err.message;
+        }
+      });
+      listSel.addEventListener('change', () => {
+        storage.set('trello_last_list', listSel.value, persistTTL);
+      });
+    }
+
+    m.querySelector('#trelloCreate').addEventListener('click', async () => {
+      const idList = listSel.value;
+      const name = String(nameEl.value || '').trim();
+      const desc = String(descEl.value || '').trim();
+      if (!trelloReady) { msgEl.textContent = 'Configure TRELLO_KEY e TRELLO_TOKEN em config.js.'; return; }
+      if (!idList) { msgEl.textContent = 'Selecione a lista.'; return; }
+      if (!name) { msgEl.textContent = 'Informe o título do card.'; return; }
+      const ok = await confirmDialog(`Criar card no Trello em "${listSel.options[listSel.selectedIndex]?.text}"?`, { confirmText: 'Criar Card', cancelText: 'Cancelar' });
+      if (!ok) return;
+      try {
+        msgEl.textContent = 'Criando card no Trello...';
+        const params = new URLSearchParams({ idList, name, desc, key: TRELLO_KEY, token: TRELLO_TOKEN });
+        const resp = await fetch(`https://api.trello.com/1/cards?${params.toString()}`, { method: 'POST' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const card = await resp.json();
+        const url = card?.shortUrl || card?.url;
+        if (!url) throw new Error('Resposta inesperada do Trello');
+        const { error } = await getSupabase().from('pendencias').update({ link_trello: url }).eq('id', id);
+        if (error) throw error;
+        msgEl.textContent = 'Card criado com sucesso. Link salvo.';
+        close();
+        render();
+      } catch (err) {
+        msgEl.textContent = 'Erro ao criar card: ' + err.message;
+      }
+    });
   });
 
   document.getElementById('btnAnalise').addEventListener('click', async () => {
@@ -618,6 +846,67 @@ const fmt = (dt) => formatDateTimeBr(dt);
       histCurrentPage--;
       renderHistTable();
     }
+  });
+
+  // Trello: ver texto do card abaixo de Solução/Orientação
+  const btnVerCard = document.getElementById('btnVerCard');
+  if (btnVerCard) btnVerCard.addEventListener('click', async () => {
+    const slot = document.getElementById('trelloPreviewSlot');
+    if (!slot) return;
+    if (!pend?.link_trello) { alert('Nenhum link Trello foi salvo para esta pendência.'); return; }
+    // Toggle: se já estiver aberto, fecha e restaura texto do botão
+    const isOpen = slot.dataset.open === 'true';
+    if (isOpen) {
+      slot.innerHTML = '';
+      slot.dataset.open = 'false';
+      btnVerCard.textContent = 'Ver Card Trello';
+      return;
+    }
+    if (!TRELLO_KEY || !TRELLO_TOKEN) { alert('Configure TRELLO_KEY e TRELLO_TOKEN em config.js para ler o card no Trello.'); return; }
+    const tryExtractCardId = (url) => {
+      try {
+        const u = new URL(url);
+        const parts = u.pathname.split('/').filter(Boolean);
+        const idx = parts.indexOf('c');
+        if (idx >= 0 && parts[idx + 1]) return parts[idx + 1];
+        // fallback: último segmento
+        return parts[parts.length - 1];
+      } catch { return null; }
+    };
+    const cardId = tryExtractCardId(pend.link_trello);
+    if (!cardId) { alert('Não foi possível identificar o ID do card a partir do link do Trello.'); return; }
+    const safeFetch = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); };
+    slot.innerHTML = `<div class="card"><div class="hint">Carregando conteúdo do Trello...</div></div>`;
+    try {
+      const card = await safeFetch(`https://api.trello.com/1/cards/${encodeURIComponent(cardId)}?fields=name,desc,url,shortUrl,idList,idBoard,labels&key=${encodeURIComponent(TRELLO_KEY)}&token=${encodeURIComponent(TRELLO_TOKEN)}`);
+      const [listInfo, boardInfo] = await Promise.all([
+        card?.idList ? safeFetch(`https://api.trello.com/1/lists/${encodeURIComponent(card.idList)}?fields=name&key=${encodeURIComponent(TRELLO_KEY)}&token=${encodeURIComponent(TRELLO_TOKEN)}`) : Promise.resolve(null),
+        card?.idBoard ? safeFetch(`https://api.trello.com/1/boards/${encodeURIComponent(card.idBoard)}?fields=name&key=${encodeURIComponent(TRELLO_KEY)}&token=${encodeURIComponent(TRELLO_TOKEN)}`) : Promise.resolve(null),
+      ]);
+      const name = card?.name || '(sem título)';
+      const desc = card?.desc || '(sem descrição)';
+      const lbls = (card?.labels || []).map(l => l.name).filter(Boolean);
+      const chipsHtml = [
+        boardInfo?.name ? `<span class="trello-chip">Board: ${sanitizeText(boardInfo.name)}</span>` : '',
+        listInfo?.name ? `<span class="trello-chip">Lista: ${sanitizeText(listInfo.name)}</span>` : '',
+      ].join(' ');
+      const labelsHtml = lbls.length ? `<span class="hint">Tags: ${sanitizeText(lbls.join(', '))}</span>` : '';
+      slot.innerHTML = `
+        <div class="card" style="border-left:4px solid #00B8D9; background: rgba(0,184,217,0.08);">
+          <h3>📌 Card Trello — ${sanitizeText(name)}</h3>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; font-size:12px; margin-bottom:6px;">${chipsHtml} ${labelsHtml}</div>
+          <div style="white-space:pre-wrap;">${sanitizeText(desc)}</div>
+          <div class="toolbar" style="justify-content:flex-end; gap:8px;">
+            <a class="btn" href="${card.shortUrl || card.url || pend.link_trello}" target="_blank" rel="noopener">Abrir no Trello</a>
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      slot.innerHTML = `<div class="card"><div class="error">Falha ao carregar card no Trello: ${sanitizeText(err.message)}</div></div>`;
+    }
+    slot.dataset.open = 'true';
+    btnVerCard.textContent = 'Ocultar Card Trello';
+    slot.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   const nextBtn = document.getElementById('histNext');
   if (nextBtn) nextBtn.addEventListener('click', () => {

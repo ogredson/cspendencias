@@ -41,6 +41,28 @@ body {
 .btn.warning { background: var(--color-warning); border-color: var(--color-warning); color: #1b1003; }
 .btn.test { background: #A78BFA; border-color: #A78BFA; color: #1f1633; }
 .btn.await { background: #14B8A6; border-color: #14B8A6; color: #ffffff; }
+/* Trello action button */
+.btn.trello { background: #00B8D9; border-color: #00B8D9; color: #ffffff; }
+/* Ensure light theme override wins over generic light button styles */
+:root[data-theme="light"] .btn.trello { background: #00B8D9 !important; border-color: #00B8D9 !important; color: #ffffff !important; }
+
+/* Chips para destacar Board/Lista do Trello */
+.trello-chip { 
+  display: inline-block; 
+  font-weight: 600; 
+  color: #0079BF; 
+  background: rgba(0, 121, 191, 0.15); 
+  padding: 2px 8px; 
+  border-radius: 6px; 
+}
+:root[data-theme="dark"] .trello-chip { 
+  color: #00B8D9; 
+  background: rgba(0, 184, 217, 0.20); 
+}
+:root[data-theme="light"] .trello-chip { 
+  color: #0079BF !important; 
+  background: rgba(0, 121, 191, 0.15) !important; 
+}
 
 /* Corrige contraste dos botões no tema claro sem afetar botões de destaque */
 /* Regra genérica do tema claro: exclui .light-warning */
