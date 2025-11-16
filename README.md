@@ -1,6 +1,15 @@
 # CS Pendências Frontend
 
-- Coloque suas credenciais do Supabase em `config.js`.
+- Segredos não devem ser versionados. Use `config.local.js` (ignorado pelo Git).
+  - Exemplo:
+    ```
+    window.__CONFIG__ = {
+      SUPABASE_URL: "https://SEU-PROJETO.supabase.co",
+      SUPABASE_ANON_KEY: "SEU-ANON-KEY",
+      TRELLO_KEY: "SEU-TRELLO-KEY",
+      TRELLO_TOKEN: "SEU-TRELLO-TOKEN"
+    };
+    ```
 - Abra `index.html` via servidor local para evitar problemas de CORS.
 
 ## Páginas

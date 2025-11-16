@@ -1,5 +1,10 @@
-export const SUPABASE_URL = "https://ohexwiamhgsnahrjynko.supabase.co";
-export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oZXh3aWFtaGdzbmFocmp5bmtvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg1NDM4MTcsImV4cCI6MjA3NDExOTgxN30.MYpemlbM2iYbnKWAGDWs8cbLJTKi0wK-o8P9jUDP59E";
-// Trello API configuration (preencha com suas credenciais)
-export const TRELLO_KEY = "947b0050d3ae8915df1e7f44cdf2429b";
-export const TRELLO_TOKEN = "ATTAd4791821140d9324ee7e9238cf6d8c0aaf13c7067ae59bce8452e93196d31521EB41ECCC";
+// Configuração central de credenciais.
+// NUNCA versione segredos aqui. Use `config.local.js` (não versionado).
+// Se `config.local.js` existir, ele deve definir `window.__CONFIG__ = { ... }`.
+// Estes exports usam os valores de `window.__CONFIG__` quando presentes.
+const localCfg = typeof window !== 'undefined' && window.__CONFIG__ ? window.__CONFIG__ : {};
+
+export const SUPABASE_URL = localCfg.SUPABASE_URL ?? "";
+export const SUPABASE_ANON_KEY = localCfg.SUPABASE_ANON_KEY ?? "";
+export const TRELLO_KEY = localCfg.TRELLO_KEY ?? "";
+export const TRELLO_TOKEN = localCfg.TRELLO_TOKEN ?? "";

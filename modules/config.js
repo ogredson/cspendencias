@@ -1,5 +1,6 @@
 import { viewMount } from './ui.js';
-import { getSupabase } from '../supabaseClient.js';
+import { getSupabase, supabaseReady } from '../supabaseClient.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, TRELLO_KEY, TRELLO_TOKEN } from '../config.js';
 
 function toCSV(rows) {
   if (!rows?.length) return '';
@@ -19,6 +20,9 @@ function download(name, content) {
 
 export async function render() {
   const v = viewMount();
+  const localCfgLoaded = typeof window !== 'undefined' && Boolean(window.__CONFIG__);
+  const supaOk = Boolean(SUPABASE_URL) && Boolean(SUPABASE_ANON_KEY);
+  const trelloOk = Boolean(TRELLO_KEY) && Boolean(TRELLO_TOKEN);
   v.innerHTML = `
     <div class="grid">
       <div class="col-6 card">
@@ -32,7 +36,22 @@ export async function render() {
       </div>
       <div class="col-6 card">
         <h3>Configurações</h3>
-        <div class="notice">As credenciais Supabase são definidas em <code>config.js</code>.</div>
+        <div class="notice">Segredos são lidos de <code>config.local.js</code> (não versionado).</div>
+        <ul>
+          <li>Status arquivo local: <strong>${localCfgLoaded ? 'carregado' : 'não encontrado'}</strong></li>
+          <li>Supabase: <strong>${supaOk ? 'OK' : 'faltando chaves'}</strong> ${supabaseReady() ? '' : '<span class="hint">Defina <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code>.</span>'}</li>
+          <li>Trello: <strong>${trelloOk ? 'OK' : 'faltando chaves'}</strong> ${trelloOk ? '' : '<span class="hint">Defina <code>TRELLO_KEY</code> e <code>TRELLO_TOKEN</code>.</span>'}</li>
+        </ul>
+        <div class="divider"></div>
+        <h4>Como configurar</h4>
+        <p>Crie <code>config.local.js</code> na raiz com este conteúdo:</p>
+        <pre style="white-space:pre-wrap; background: var(--bg-muted); padding:8px; border-radius:6px;"><code>window.__CONFIG__ = {
+  SUPABASE_URL: "https://SEU-PROJETO.supabase.co",
+  SUPABASE_ANON_KEY: "SEU-ANON-KEY",
+  TRELLO_KEY: "SEU-TRELLO-KEY",
+  TRELLO_TOKEN: "SEU-TRELLO-TOKEN"
+};</code></pre>
+        <div class="hint">Este arquivo é ignorado pelo Git em <code>.gitignore</code>. Não versione segredos.</div>
       </div>
     </div>
   `;

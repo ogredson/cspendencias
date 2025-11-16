@@ -1,0 +1,16 @@
+# Arquivos locais com segredos (não versionar)
+config.local.js
+.env
+.env.*
+
+# Logs e artefatos comuns
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Sistema/IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
