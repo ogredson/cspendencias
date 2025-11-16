@@ -30,6 +30,15 @@
 - Debounce em buscas e cache com TTL em `localStorage`.
 - Paginação em listas; pronto para escalar com virtual scrolling.
 
+## Deploy na Vercel
+- Defina variáveis de ambiente no projeto Vercel:
+  - `SUPABASE_URL`, `SUPABASE_ANON_KEY` (a anon key é pública por design)
+  - Opcional: `TRELLO_KEY`, `TRELLO_TOKEN` (evite expor em produção; prefira proxy/serveless)
+- Configure o Build Command: `node build.mjs`
+- Output Directory: `.` (raiz do projeto)
+- O script `build.mjs` gera `config.local.js` com base nas variáveis de ambiente.
+- Após o deploy, a página `#/config` exibirá o status das chaves carregadas.
+
 ## Estados de Pendência (Permitidos)
 
 Estes valores devem ser usados exatamente como definidos na base (CHECK `pendencias_status_check`):
