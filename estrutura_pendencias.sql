@@ -60,17 +60,16 @@ create table public.pendencias (
       )
     )
   ),
-  constraint pendencias_tipo_check check (
+ constraint pendencias_tipo_check check (
     (
       (tipo)::text = any (
-        (
-          array[
-            'Programação'::character varying,
-            'Suporte'::character varying,
-            'Implantação'::character varying,
-            'Atualizacao'::character varying
-          ]
-        )::text[]
+        array[
+          ('Programação'::character varying)::text,
+          ('Suporte'::character varying)::text,
+          ('Implantação'::character varying)::text,
+          ('Atualizacao'::character varying)::text,
+          ('Outro'::character varying)::text
+        ]
       )
     )
   )

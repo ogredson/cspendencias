@@ -138,6 +138,8 @@ body {
 .form { display: grid; gap: 12px; }
 .field { display: grid; gap: 6px; }
 .field label { font-size: 12px; color: var(--muted); }
+/* Labels vinho apenas nas janelas de nova/edição de pendência */
+.pend-form .field label { color: #7A0019; }
 .input, select, textarea { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #1f2937; background: #0b1220; color: var(--text); }
 :root[data-theme="light"] .input, :root[data-theme="light"] select, :root[data-theme="light"] textarea { background: #ffffff; border-color: #e5e7eb; color: #111827; }
 textarea { min-height: 80px; }

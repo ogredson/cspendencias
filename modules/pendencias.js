@@ -22,6 +22,8 @@ function daysSince(dateStr) {
 
 function rowHtml(p) {
   const triRelato = Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_relato ?? '') : (p.pendencia_triagem?.tecnico_relato ?? '');
+  const triRespRaw = Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_responsavel ?? '') : (p.pendencia_triagem?.tecnico_responsavel ?? '');
+  const triResp = triRespRaw || p.tecnico || '';
   const clienteNome = clienteMap[p.cliente_id] ?? p.cliente_id ?? '';
   const titulo = String(p.descricao ?? '');
   const tituloAttr = titulo.replace(/"/g, '&quot;');
@@ -33,7 +35,7 @@ function rowHtml(p) {
       <td>${moduloMap[p.modulo_id] ?? p.modulo_id ?? ''}</td>
       <td>${p.tipo}</td>
       <td class="col-tech-relato">${triRelato ?? ''}</td>
-      <td class="col-tech-resp">${p.tecnico}</td>
+      <td class="col-tech-resp">${triResp ?? ''}</td>
       <td><span class="prio ${p.prioridade}" aria-label="${p.prioridade}">${p.prioridade}</span></td>
       <td><span class="status ${p.status}" aria-label="${p.status}">${p.status}</span></td>
       <td>${daysSince(p.data_relato)}</td>
@@ -92,7 +94,7 @@ function formHtml(clientes) {
   return `
   <div class="card">
     <h3>Nova Pendência</h3>
-    <form id="pForm" class="form">
+    <form id="pForm" class="form pend-form">
       <div class="tabs" role="tablist" style="display:flex; gap:8px; margin-bottom:8px;">
         <button type="button" class="tab active" data-tab="dados">Dados</button>
         <button type="button" class="tab" data-tab="solucao">Solução/Orientação</button>
@@ -119,6 +121,7 @@ function formHtml(clientes) {
             <option selected>Suporte</option>
             <option>Implantação</option>
             <option>Atualizacao</option>
+            <option>Outro</option>
           </select>
         </div>
         <div class="col-4 field">
@@ -220,6 +223,13 @@ function formHtml(clientes) {
           <textarea class="input" name="recursos_necessarios"></textarea>
         </div>
       </div>
+      <div class="card" id="grpOutro" style="margin-top:8px">
+        <h4>🧩 Outra Pendência</h4>
+        <div class="field">
+          <label>Outra Pendencia<br />Situação: Informe pendencia comercial, financeira, treinamento ou outra qualquer</label>
+          <textarea class="input" name="situacao"></textarea>
+        </div>
+      </div>
       </div>
       <div id="tabContentSolucao" data-tab-content="solucao" style="display:none;">
         <div class="card" style="margin-top:8px;">
@@ -263,6 +273,7 @@ function filtersHtml(clientes, usuarios = [], modulos = []) {
         <option>Suporte</option>
         <option>Implantação</option>
         <option>Atualizacao</option>
+        <option>Outro</option>
       </select>
       <select id="fModulo" class="input">${moduloOptions}</select>
       <select id="fCliente" class="input">${clienteOptions}</select>
@@ -523,14 +534,17 @@ export async function render() {
     const grpPS = modal.querySelector('#grpPS');
     const grpImpl = modal.querySelector('#grpImpl');
     const grpAtual = modal.querySelector('#grpAtual');
+    const grpOutro = modal.querySelector('#grpOutro');
     const updateGroupsByType = () => {
       const tipo = (tipoSel?.value || '').trim();
       const showPS = tipo === 'Programação' || tipo === 'Suporte';
       const showImpl = tipo === 'Implantação';
       const showAtual = tipo === 'Atualizacao';
+      const showOutro = tipo === 'Outro';
       if (grpPS) grpPS.style.display = showPS ? '' : 'none';
       if (grpImpl) grpImpl.style.display = showImpl ? '' : 'none';
       if (grpAtual) grpAtual.style.display = showAtual ? '' : 'none';
+      if (grpOutro) grpOutro.style.display = showOutro ? '' : 'none';
     };
     updateGroupsByType();
     if (tipoSel) tipoSel.addEventListener('change', updateGroupsByType);
@@ -539,6 +553,11 @@ export async function render() {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(form);
+      const getLast = (name) => {
+        const arr = fd.getAll(name) || [];
+        const val = arr.slice().reverse().find(v => v && String(v).trim().length);
+        return val || null;
+      };
       const payload = {
         cliente_id: fd.get('cliente_id') || null,
         modulo_id: Number(fd.get('modulo_id')),
@@ -551,22 +570,36 @@ export async function render() {
         descricao: fd.get('descricao'),
         link_trello: fd.get('link_trello') || null,
         // Campos existentes no banco
-        situacao: fd.get('situacao') || null,
-        etapas_reproducao: fd.get('etapas_reproducao') || null,
-        frequencia: fd.get('frequencia') || null,
-        informacoes_adicionais: fd.get('informacoes_adicionais') || null,
-        escopo: fd.get('escopo') || null,
-        objetivo: fd.get('objetivo') || null,
-        recursos_necessarios: fd.get('recursos_necessarios') || null,
-        solucao_orientacao: fd.get('solucao_orientacao') || null,
+        situacao: getLast('situacao'),
+        etapas_reproducao: getLast('etapas_reproducao'),
+        frequencia: getLast('frequencia'),
+        informacoes_adicionais: getLast('informacoes_adicionais'),
+        escopo: getLast('escopo'),
+        objetivo: getLast('objetivo'),
+        recursos_necessarios: getLast('recursos_necessarios'),
+        solucao_orientacao: getLast('solucao_orientacao'),
       };
       const supabase = getSupabase();
-      const { error } = await supabase.from('pendencias').insert(payload);
+      // Inserir pendência e obter ID para criar registro de triagem
+      const { data: inserted, error } = await supabase
+        .from('pendencias')
+        .insert(payload)
+        .select('id')
+        .single();
       const msgEl = modal.querySelector('#pFormMsg');
       if (error) {
         if (msgEl) msgEl.textContent = 'Erro ao salvar: ' + error.message;
         return;
       }
+      // Criar (ou garantir) registro em pendencia_triagem com técnico do relato
+      try {
+        const pendId = inserted?.id;
+        if (pendId) {
+          await supabase
+            .from('pendencia_triagem')
+            .upsert({ pendencia_id: pendId, tecnico_relato: payload.tecnico }, { onConflict: 'pendencia_id' });
+        }
+      } catch {}
       if (msgEl) msgEl.textContent = 'Pendência criada com sucesso.';
       if (modal.closeModal) modal.closeModal();
       state.page = 1;
@@ -641,14 +674,16 @@ export async function render() {
           setVal(modal.querySelector('input[name="descricao"]'), pend?.descricao ?? '');
           setVal(modal.querySelector('input[name="link_trello"]'), pend?.link_trello ?? '');
           // Campos adicionais
-          setVal(modal.querySelector('textarea[name="situacao"]'), pend?.situacao ?? '');
-          setVal(modal.querySelector('textarea[name="etapas_reproducao"]'), pend?.etapas_reproducao ?? '');
-          setVal(modal.querySelector('input[name="frequencia"]'), pend?.frequencia ?? '');
-          setVal(modal.querySelector('textarea[name="informacoes_adicionais"]'), pend?.informacoes_adicionais ?? '');
-          setVal(modal.querySelector('textarea[name="escopo"]'), pend?.escopo ?? '');
-          setVal(modal.querySelector('textarea[name="objetivo"]'), pend?.objetivo ?? '');
-          setVal(modal.querySelector('textarea[name="recursos_necessarios"]'), pend?.recursos_necessarios ?? '');
-          setVal(modal.querySelector('textarea[name="solucao_orientacao"]'), pend?.solucao_orientacao ?? '');
+          modal.querySelectorAll('textarea[name="situacao"]').forEach(el => setVal(el, pend?.situacao ?? ''));
+          modal.querySelectorAll('textarea[name="etapas_reproducao"]').forEach(el => setVal(el, pend?.etapas_reproducao ?? ''));
+          const freqEl = modal.querySelector('input[name="frequencia"]');
+          setVal(freqEl, pend?.frequencia ?? '');
+          modal.querySelectorAll('textarea[name="informacoes_adicionais"]').forEach(el => setVal(el, pend?.informacoes_adicionais ?? ''));
+          modal.querySelectorAll('textarea[name="escopo"]').forEach(el => setVal(el, pend?.escopo ?? ''));
+          modal.querySelectorAll('textarea[name="objetivo"]').forEach(el => setVal(el, pend?.objetivo ?? ''));
+          modal.querySelectorAll('textarea[name="recursos_necessarios"]').forEach(el => setVal(el, pend?.recursos_necessarios ?? ''));
+          const solEl = modal.querySelector('textarea[name="solucao_orientacao"]');
+          setVal(solEl, pend?.solucao_orientacao ?? '');
           // Status apenas exibição
           const statusSel = modal.querySelector('select[name="status"]');
           if (statusSel) {
@@ -670,14 +705,17 @@ export async function render() {
           const grpPS = modal.querySelector('#grpPS');
           const grpImpl = modal.querySelector('#grpImpl');
           const grpAtual = modal.querySelector('#grpAtual');
+          const grpOutro = modal.querySelector('#grpOutro');
           const updateGroupsByType = () => {
             const tipo = (tipoSel?.value || '').trim();
             const showPS = tipo === 'Programação' || tipo === 'Suporte';
             const showImpl = tipo === 'Implantação';
             const showAtual = tipo === 'Atualizacao';
+            const showOutro = tipo === 'Outro';
             if (grpPS) grpPS.style.display = showPS ? '' : 'none';
             if (grpImpl) grpImpl.style.display = showImpl ? '' : 'none';
             if (grpAtual) grpAtual.style.display = showAtual ? '' : 'none';
+            if (grpOutro) grpOutro.style.display = showOutro ? '' : 'none';
           };
           updateGroupsByType();
           if (tipoSel) tipoSel.addEventListener('change', updateGroupsByType);
@@ -698,14 +736,14 @@ export async function render() {
               descricao: fd.get('descricao'),
               link_trello: fd.get('link_trello') || null,
               // Campos existentes
-              situacao: fd.get('situacao') || null,
-              etapas_reproducao: fd.get('etapas_reproducao') || null,
-              frequencia: fd.get('frequencia') || null,
-              informacoes_adicionais: fd.get('informacoes_adicionais') || null,
-              escopo: fd.get('escopo') || null,
-              objetivo: fd.get('objetivo') || null,
-              recursos_necessarios: fd.get('recursos_necessarios') || null,
-              solucao_orientacao: fd.get('solucao_orientacao') || null,
+              situacao: (() => { const a = fd.getAll('situacao') || []; const v = a.slice().reverse().find(x => x && String(x).trim().length); return v || null; })(),
+              etapas_reproducao: (() => { const a = fd.getAll('etapas_reproducao') || []; const v = a.slice().reverse().find(x => x && String(x).trim().length); return v || null; })(),
+              frequencia: (() => { const a = fd.getAll('frequencia') || []; const v = a.slice().reverse().find(x => x && String(x).trim().length); return v || null; })(),
+              informacoes_adicionais: (() => { const a = fd.getAll('informacoes_adicionais') || []; const v = a.slice().reverse().find(x => x && String(x).trim().length); return v || null; })(),
+              escopo: (() => { const a = fd.getAll('escopo') || []; const v = a.slice().reverse().find(x => x && String(x).trim().length); return v || null; })(),
+              objetivo: (() => { const a = fd.getAll('objetivo') || []; const v = a.slice().reverse().find(x => x && String(x).trim().length); return v || null; })(),
+              recursos_necessarios: (() => { const a = fd.getAll('recursos_necessarios') || []; const v = a.slice().reverse().find(x => x && String(x).trim().length); return v || null; })(),
+              solucao_orientacao: (() => { const a = fd.getAll('solucao_orientacao') || []; const v = a.slice().reverse().find(x => x && String(x).trim().length); return v || null; })(),
             };
             const { error } = await supabase.from('pendencias').update(payload).eq('id', id);
             if (error) {

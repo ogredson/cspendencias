@@ -195,6 +195,16 @@ const fmt = (dt) => formatDateTimeBr(dt);
           </tbody>
         </table>
       </div>`;
+  } else if (pend?.tipo === 'Outro') {
+    detalhesHtml = `
+      <div class="card">
+        <h3>🧩 Outra Pendência</h3>
+        <table class="table details-table" style="margin-top:8px;">
+          <tbody>
+            <tr><th>Situação:</th><td class="pre">${pend?.situacao ?? 'Não informado'}</td></tr>
+          </tbody>
+        </table>
+      </div>`;
   }
 
   v.innerHTML = `
@@ -334,15 +344,24 @@ const fmt = (dt) => formatDateTimeBr(dt);
     }
     const ok = await confirmDialog(`Você está prestes a designar a pendência ${id} para triagem de ${nome}.`);
     if (!ok) return;
-    const { error: e1 } = await supabase.from('pendencia_triagem').update({
-      tecnico_triagem: nome, data_triagem: new Date().toISOString()
-    }).eq('pendencia_id', id);
+    const { error: e1 } = await supabase
+      .from('pendencia_triagem')
+      .upsert({ pendencia_id: id, tecnico_triagem: nome, data_triagem: new Date().toISOString() }, { onConflict: 'pendencia_id' });
     if (e1) { alert('Erro designar: ' + e1.message); return; }
     const { error: e2 } = await supabase.from('pendencias').update({ status: 'Aguardando Aceite' }).eq('id', id);
     if (e2) { alert('Erro status: ' + e2.message); return; }
   await supabase.from('pendencia_historicos').insert({
       pendencia_id: id, acao: 'Designado para triagem', usuario: session.get()?.nome || nome,
       campo_alterado: 'tecnico_triagem', valor_anterior: tri?.tecnico_triagem ?? null, valor_novo: nome
+    });
+    // Histórico do status alterado para "Aguardando Aceite"
+    await supabase.from('pendencia_historicos').insert({
+      pendencia_id: id,
+      acao: 'Status alterado para Aguardando Aceite',
+      usuario: session.get()?.nome || nome,
+      campo_alterado: 'status',
+      valor_anterior: pend?.status ?? null,
+      valor_novo: 'Aguardando Aceite'
     });
     render();
   });
@@ -415,6 +434,12 @@ const fmt = (dt) => formatDateTimeBr(dt);
           '',
           'Requisitos específicos:',
           `${pend?.recursos_necessarios ?? '—'}`,
+          ''
+        );
+      } else if (tipo === 'Outro') {
+        linhas.push(
+          'Situação:',
+          `${pend?.situacao ?? '—'}`,
           ''
         );
       }
@@ -574,11 +599,9 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const resp = selVal;
     const ok = await confirmDialog(`Você está prestes a aceitar a análise da pendência ${id} por ${resp}.`);
     if (!ok) return;
-    const { error: e1 } = await supabase.from('pendencia_triagem').update({
-      tecnico_triagem: tri?.tecnico_triagem || resp,
-      tecnico_responsavel: resp,
-      data_aceite: new Date().toISOString()
-    }).eq('pendencia_id', id);
+    const { error: e1 } = await supabase
+      .from('pendencia_triagem')
+      .upsert({ pendencia_id: id, tecnico_triagem: tri?.tecnico_triagem || resp, tecnico_responsavel: resp, data_aceite: new Date().toISOString() }, { onConflict: 'pendencia_id' });
     if (e1) { alert('Erro análise: ' + e1.message); return; }
     const { error: e2 } = await supabase.from('pendencias').update({
       status: 'Em Analise', tecnico: resp
@@ -597,9 +620,9 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const resp = selVal;
     const ok = await confirmDialog(`Você está prestes a aceitar a resolução da pendência ${id} por ${resp}.`);
     if (!ok) return;
-    const { error: e1 } = await supabase.from('pendencia_triagem').update({
-      tecnico_responsavel: resp, data_aceite: new Date().toISOString()
-    }).eq('pendencia_id', id);
+    const { error: e1 } = await supabase
+      .from('pendencia_triagem')
+      .upsert({ pendencia_id: id, tecnico_responsavel: resp, data_aceite: new Date().toISOString() }, { onConflict: 'pendencia_id' });
     if (e1) { alert('Erro aceite: ' + e1.message); return; }
     const { error: e2 } = await supabase.from('pendencias').update({
       status: 'Em Andamento', tecnico: resp
@@ -639,11 +662,9 @@ const fmt = (dt) => formatDateTimeBr(dt);
     if (!ok) return;
     const motivo = prompt('Motivo da rejeição:');
     if (!motivo) return;
-    const { error: e1 } = await supabase.from('pendencia_triagem').update({
-      tecnico_triagem: tri?.tecnico_triagem || selVal,
-      data_rejeicao: new Date().toISOString(),
-      motivo_rejeicao: motivo
-    }).eq('pendencia_id', id);
+    const { error: e1 } = await supabase
+      .from('pendencia_triagem')
+      .upsert({ pendencia_id: id, tecnico_triagem: tri?.tecnico_triagem || selVal, data_rejeicao: new Date().toISOString(), motivo_rejeicao: motivo }, { onConflict: 'pendencia_id' });
     if (e1) { alert('Erro rejeição: ' + e1.message); return; }
     const { error: e2 } = await supabase.from('pendencias').update({ status: 'Rejeitada' }).eq('id', id);
     if (e2) { alert('Erro status: ' + e2.message); return; }
@@ -661,10 +682,9 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const ok = await confirmDialog(`Você está prestes a marcar a pendência ${id} como 'Aguardando o Cliente' por ${selVal}.`);
     if (!ok) return;
     // Atualiza técnico responsável na triagem
-    const { error: e1 } = await supabase.from('pendencia_triagem').update({
-      tecnico_responsavel: selVal,
-      data_aceite: tri?.data_aceite || new Date().toISOString()
-    }).eq('pendencia_id', id);
+    const { error: e1 } = await supabase
+      .from('pendencia_triagem')
+      .upsert({ pendencia_id: id, tecnico_responsavel: selVal, data_aceite: tri?.data_aceite || new Date().toISOString() }, { onConflict: 'pendencia_id' });
     if (e1) { alert('Erro responsável: ' + e1.message); return; }
     // Atualiza status e técnico atual na pendência
     const { error: e2 } = await supabase.from('pendencias').update({
@@ -722,10 +742,14 @@ const fmt = (dt) => formatDateTimeBr(dt);
       <tr><th>Impacto</th><td class='pre'>${pend?.informacoes_adicionais ?? '—'}</td></tr>
       <tr><th>Requisitos específicos</th><td class='pre'>${pend?.recursos_necessarios ?? '—'}</td></tr>
     `;
+    const blocoOutro = `
+      <tr><th>Situação</th><td class='pre'>${pend?.situacao ?? '—'}</td></tr>
+    `;
     const extra =
       tipo === 'Programação' || tipo === 'Suporte' ? blocoPS :
       tipo === 'Implantação' ? blocoImpl :
-      tipo === 'Atualizacao' ? blocoAtual : '';
+      tipo === 'Atualizacao' ? blocoAtual :
+      tipo === 'Outro' ? blocoOutro : '';
 
     const modal = openModal(`
       <div class='card'>
@@ -778,6 +802,8 @@ const fmt = (dt) => formatDateTimeBr(dt);
         `Motivação: ${pend?.objetivo ?? '—'}`,
         `Impacto: ${pend?.informacoes_adicionais ?? '—'}`,
         `Requisitos específicos: ${pend?.recursos_necessarios ?? '—'}`
+      ].join('\n') : tipo === 'Outro' ? [
+        `Situação: ${pend?.situacao ?? '—'}`
       ].join('\n') : ''
     ].filter(Boolean).join('\n');
 
