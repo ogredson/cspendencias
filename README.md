@@ -63,7 +63,7 @@ Estes valores devem ser usados exatamente como definidos na base (CHECK `pendenc
 2. Designação
    - `Designar para triagem` define `tecnico_triagem` e muda para `Aguardando Aceite`.
 3. Aceitar Análise
-   - Botão “Aceitar Análise”: define `tecnico_responsavel`, grava `data_aceite`, muda para `Em Analise` e registra histórico “Pendência aceita para análise”.
+   - Botão “Aceitar Análise”: não define `tecnico_responsavel`; grava `data_aceite`, muda para `Em Analise` e registra histórico “Pendência aceita para análise” com `campo_alterado = status` (de Triagem para Em Analise). O cabeçalho exibe “Em análise por” com o técnico de triagem.
 4. Aceitar Resolução
    - Botão “Aceitar Resolução”: define `tecnico_responsavel`, grava `data_aceite`, muda para `Em Andamento` e registra histórico “Pendência aceita para resolução”.
 5. Teste

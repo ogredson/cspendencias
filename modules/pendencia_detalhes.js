@@ -7,6 +7,24 @@ import { session } from '../utils/session.js';
 import { debounce } from '../utils/debounce.js';
 import { formatDateBr, formatDateTimeBr } from '../utils/validation.js';
 
+// Helper: salva triagem sem depender de ON CONFLICT (índice único)
+async function saveTriagemNoConflict(supabase, pendenciaId, patch) {
+  const { data: existing } = await supabase
+    .from('pendencia_triagem')
+    .select('pendencia_id')
+    .eq('pendencia_id', pendenciaId)
+    .maybeSingle();
+  if (existing) {
+    return await supabase
+      .from('pendencia_triagem')
+      .update(patch)
+      .eq('pendencia_id', pendenciaId);
+  }
+  return await supabase
+    .from('pendencia_triagem')
+    .insert({ pendencia_id: pendenciaId, ...patch });
+}
+
 function getIdFromHash() {
   const qs = (location.hash.split('?')[1] || '');
   const params = new URLSearchParams(qs);
@@ -45,6 +63,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
   const sanitizeText = (s) => String(s ?? '').replace(/[&<>\"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;'}[ch]));
   const findByAction = (arr, needle) => (arr || []).find(h => String(h.acao || '').toLowerCase().includes(needle));
   const histDesignado = findByAction(hist, 'designado para triagem');
+  const histAnalise = findByAction(hist, 'análise');
   const histAceito = findByAction(hist, 'aceita para resolução');
   const histRejeitada = findByAction(hist, 'rejeitad');
   const histResolvida = findByAction(hist, 'resolvid');
@@ -73,8 +92,8 @@ const fmt = (dt) => formatDateTimeBr(dt);
       return `Aguardando aceite de: ${quem}${quando ? ` • desde: ${quando}` : ''}`;
     }
     if (s === 'Em Analise') {
-      const quem = tri?.tecnico_responsavel ?? histAceito?.usuario ?? '—';
-      const quando = fmt(tri?.data_aceite) || fmt(histAceito?.created_at);
+      const quem = tri?.tecnico_triagem ?? histAnalise?.usuario ?? '—';
+      const quando = fmt(tri?.data_aceite) || fmt(histAnalise?.created_at);
       return `Em análise por: ${quem}${quando ? ` • desde: ${quando}` : ''}`;
     }
     if (s === 'Em Andamento') {
@@ -344,16 +363,10 @@ const fmt = (dt) => formatDateTimeBr(dt);
     }
     const ok = await confirmDialog(`Você está prestes a designar a pendência ${id} para triagem de ${nome}.`);
     if (!ok) return;
-    const { error: e1 } = await supabase
-      .from('pendencia_triagem')
-      .upsert({ pendencia_id: id, tecnico_triagem: nome, data_triagem: new Date().toISOString() }, { onConflict: 'pendencia_id' });
+    const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_triagem: nome, data_triagem: new Date().toISOString() });
     if (e1) { alert('Erro designar: ' + e1.message); return; }
     const { error: e2 } = await supabase.from('pendencias').update({ status: 'Aguardando Aceite' }).eq('id', id);
     if (e2) { alert('Erro status: ' + e2.message); return; }
-  await supabase.from('pendencia_historicos').insert({
-      pendencia_id: id, acao: 'Designado para triagem', usuario: session.get()?.nome || nome,
-      campo_alterado: 'tecnico_triagem', valor_anterior: tri?.tecnico_triagem ?? null, valor_novo: nome
-    });
     // Histórico do status alterado para "Aguardando Aceite"
     await supabase.from('pendencia_historicos').insert({
       pendencia_id: id,
@@ -599,17 +612,21 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const resp = selVal;
     const ok = await confirmDialog(`Você está prestes a aceitar a análise da pendência ${id} por ${resp}.`);
     if (!ok) return;
-    const { error: e1 } = await supabase
-      .from('pendencia_triagem')
-      .upsert({ pendencia_id: id, tecnico_triagem: tri?.tecnico_triagem || resp, tecnico_responsavel: resp, data_aceite: new Date().toISOString() }, { onConflict: 'pendencia_id' });
+    // Aceitar análise: não define tecnico_responsavel para evitar log de "resolução" pelo trigger
+    const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_triagem: tri?.tecnico_triagem || resp, data_aceite: new Date().toISOString() });
     if (e1) { alert('Erro análise: ' + e1.message); return; }
     const { error: e2 } = await supabase.from('pendencias').update({
       status: 'Em Analise', tecnico: resp
     }).eq('id', id);
     if (e2) { alert('Erro status: ' + e2.message); return; }
+    // Log claro para análise: mudar status para Em Analise
     await supabase.from('pendencia_historicos').insert({
-      pendencia_id: id, acao: 'Pendência aceita para análise', usuario: session.get()?.nome || resp,
-      campo_alterado: 'tecnico_responsavel', valor_anterior: tri?.tecnico_responsavel ?? null, valor_novo: resp
+      pendencia_id: id,
+      acao: 'Pendência aceita para análise',
+      usuario: session.get()?.nome || resp,
+      campo_alterado: 'status',
+      valor_anterior: pend?.status ?? null,
+      valor_novo: 'Em Analise'
     });
     render();
   });
@@ -620,17 +637,20 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const resp = selVal;
     const ok = await confirmDialog(`Você está prestes a aceitar a resolução da pendência ${id} por ${resp}.`);
     if (!ok) return;
-    const { error: e1 } = await supabase
-      .from('pendencia_triagem')
-      .upsert({ pendencia_id: id, tecnico_responsavel: resp, data_aceite: new Date().toISOString() }, { onConflict: 'pendencia_id' });
+    const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_responsavel: resp, data_aceite: new Date().toISOString() });
     if (e1) { alert('Erro aceite: ' + e1.message); return; }
     const { error: e2 } = await supabase.from('pendencias').update({
       status: 'Em Andamento', tecnico: resp
     }).eq('id', id);
     if (e2) { alert('Erro status: ' + e2.message); return; }
+    // Evita duplicidade com trigger de triagem; registra só mudança de status
     await supabase.from('pendencia_historicos').insert({
-      pendencia_id: id, acao: 'Pendência aceita para resolução', usuario: session.get()?.nome || resp,
-      campo_alterado: 'tecnico_responsavel', valor_anterior: tri?.tecnico_responsavel ?? null, valor_novo: resp
+      pendencia_id: id,
+      acao: 'Status alterado para Em Andamento',
+      usuario: session.get()?.nome || resp,
+      campo_alterado: 'status',
+      valor_anterior: pend?.status ?? null,
+      valor_novo: 'Em Andamento'
     });
     render();
   });
@@ -662,9 +682,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
     if (!ok) return;
     const motivo = prompt('Motivo da rejeição:');
     if (!motivo) return;
-    const { error: e1 } = await supabase
-      .from('pendencia_triagem')
-      .upsert({ pendencia_id: id, tecnico_triagem: tri?.tecnico_triagem || selVal, data_rejeicao: new Date().toISOString(), motivo_rejeicao: motivo }, { onConflict: 'pendencia_id' });
+    const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_triagem: tri?.tecnico_triagem || selVal, data_rejeicao: new Date().toISOString(), motivo_rejeicao: motivo });
     if (e1) { alert('Erro rejeição: ' + e1.message); return; }
     const { error: e2 } = await supabase.from('pendencias').update({ status: 'Rejeitada' }).eq('id', id);
     if (e2) { alert('Erro status: ' + e2.message); return; }
@@ -682,9 +700,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const ok = await confirmDialog(`Você está prestes a marcar a pendência ${id} como 'Aguardando o Cliente' por ${selVal}.`);
     if (!ok) return;
     // Atualiza técnico responsável na triagem
-    const { error: e1 } = await supabase
-      .from('pendencia_triagem')
-      .upsert({ pendencia_id: id, tecnico_responsavel: selVal, data_aceite: tri?.data_aceite || new Date().toISOString() }, { onConflict: 'pendencia_id' });
+    const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_responsavel: selVal, data_aceite: tri?.data_aceite || new Date().toISOString() });
     if (e1) { alert('Erro responsável: ' + e1.message); return; }
     // Atualiza status e técnico atual na pendência
     const { error: e2 } = await supabase.from('pendencias').update({

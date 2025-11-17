@@ -17,6 +17,7 @@ export function initAppShell(mount) {
           <a href="#/modulos" data-route="#/modulos">Módulos</a>
           <a href="#/relatorios" data-route="#/relatorios">Relatórios</a>
           <a href="#/config" data-route="#/config">Configurações</a>
+          <a href="#/ajuda" data-route="#/ajuda">Ajuda</a>
         </nav>
       </aside>
       <main class="content"><div id="view"></div></main>
@@ -27,6 +28,8 @@ export function initAppShell(mount) {
     const s = session.get();
     const el = document.getElementById('userName');
     if (el) el.textContent = s?.nome || '';
+    const cfgLink = document.querySelector('#nav a[data-route="#/config"]');
+    if (cfgLink) cfgLink.style.display = (s?.funcao === 'Adm') ? '' : 'none';
   });
 
   import('../utils/theme.js').then(({ theme }) => {

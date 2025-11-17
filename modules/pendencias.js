@@ -77,6 +77,19 @@ async function fetchPendencias(filters = {}, page = 1, limit = 20) {
   if (filters.tipo) q = q.eq('tipo', filters.tipo);
   if (filters.modulo_id) q = q.eq('modulo_id', Number(filters.modulo_id));
   if (filters.cliente_id) q = q.eq('cliente_id', filters.cliente_id);
+  // Pesquisa livre por nome do cliente usando cache local de clientes
+  if (!filters.cliente_id && filters.cliente_like) {
+    const allClientes = storage.get('clientes') || [];
+    const term = String(filters.cliente_like).toLowerCase();
+    const ids = allClientes
+      .filter(c => String(c.nome || '').toLowerCase().includes(term))
+      .map(c => c.id_cliente);
+    if (ids.length === 0) {
+      // Nenhum cliente corresponde; retorna lista vazia sem consultar o servidor
+      return { data: [], error: null, count: 0 };
+    }
+    q = q.in('cliente_id', ids);
+  }
   if (filters.tecnico) q = q.ilike('tecnico', `%${filters.tecnico}%`);
   if (filters.data_ini) q = q.gte('data_relato', filters.data_ini);
   if (filters.data_fim) q = q.lte('data_relato', filters.data_fim);
@@ -89,7 +102,7 @@ async function fetchPendencias(filters = {}, page = 1, limit = 20) {
 }
 
 function formHtml(clientes) {
-  const clienteOptions = clientes.map(c => `<option value="${c.id_cliente}">${c.nome}</option>`).join('');
+  const clienteOptions = clientes.map(c => `<option value="${c.nome}"></option>`).join('');
   const user = session.get();
   return `
   <div class="card">
@@ -103,10 +116,8 @@ function formHtml(clientes) {
       <div class="row">
         <div class="col-6 field">
           <label>Cliente</label>
-          <select name="cliente_id" class="input">
-            <option value="">Selecione...</option>
-            ${clienteOptions}
-          </select>
+          <input name="cliente_nome" class="input" placeholder="Cliente (nome)" list="clientesFormList" />
+          <datalist id="clientesFormList">${clienteOptions}</datalist>
         </div>
         <div class="col-6 field">
           <label>Módulo</label>
@@ -251,7 +262,7 @@ function formHtml(clientes) {
 }
 
 function filtersHtml(clientes, usuarios = [], modulos = []) {
-  const clienteOptions = ['<option value="">Todos</option>', ...clientes.map(c => `<option value="${c.id_cliente}">${c.nome}</option>`)].join('');
+  const clienteOptions = clientes.map(c => `<option value="${c.nome}"></option>`).join('');
   const tecnicoOptions = ['<option value="">Técnico</option>', ...usuarios.map(u => `<option value="${u.nome}">${u.nome}</option>`)].join('');
   const moduloOptions = ['<option value="">Módulo</option>', ...modulos.map(m => `<option value="${m.id}">${m.nome}</option>`)].join('');
   return `
@@ -276,7 +287,8 @@ function filtersHtml(clientes, usuarios = [], modulos = []) {
         <option>Outro</option>
       </select>
       <select id="fModulo" class="input">${moduloOptions}</select>
-      <select id="fCliente" class="input">${clienteOptions}</select>
+      <input id="fCliente" class="input" placeholder="Cliente (nome)" list="clientesList" />
+      <datalist id="clientesList">${clienteOptions}</datalist>
       <select id="fTecnico" class="input">${tecnicoOptions}</select>
       <input id="fDataIni" class="input" type="date" />
       <input id="fDataFim" class="input" type="date" />
@@ -378,15 +390,23 @@ export async function render() {
   const state = { page: 1, limit: 200, filters: {}, data: [], viewMode: 'grid' };
 
   // Helper: captura filtros dos inputs
-  const captureFilters = () => ({
-    status: sanitizeText(document.getElementById('fStatus').value) || undefined,
-    tipo: sanitizeText(document.getElementById('fTipo').value) || undefined,
-    modulo_id: sanitizeText(document.getElementById('fModulo').value) || undefined,
-    cliente_id: sanitizeText(document.getElementById('fCliente').value) || undefined,
-    tecnico: sanitizeText(document.getElementById('fTecnico').value) || undefined,
-    data_ini: toDate(document.getElementById('fDataIni').value) || undefined,
-    data_fim: toDate(document.getElementById('fDataFim').value) || undefined,
-  });
+  const captureFilters = () => {
+    const f = {
+      status: sanitizeText(document.getElementById('fStatus').value) || undefined,
+      tipo: sanitizeText(document.getElementById('fTipo').value) || undefined,
+      modulo_id: sanitizeText(document.getElementById('fModulo').value) || undefined,
+      tecnico: sanitizeText(document.getElementById('fTecnico').value) || undefined,
+      data_ini: toDate(document.getElementById('fDataIni').value) || undefined,
+      data_fim: toDate(document.getElementById('fDataFim').value) || undefined,
+    };
+    const nome = sanitizeText(document.getElementById('fCliente').value).trim();
+    if (nome) {
+      const all = storage.get('clientes') || [];
+      const hit = all.find(c => String(c.nome || '').toLowerCase() === nome.toLowerCase());
+      if (hit) f.cliente_id = hit.id_cliente; else f.cliente_like = nome;
+    }
+    return f;
+  };
   
   // Default: últimos 7 dias
   const toYMD = (d) => {
@@ -451,15 +471,23 @@ export async function render() {
       const s = String(p.status || '').trim();
       (byStatus[s] || (byStatus[s] = [])).push(p);
     });
-    const cardHtml = (p) => `
-      <div class="card" style="padding:8px;">
-        <div style="font-weight:600; margin-bottom:4px;">${clienteMap[p.cliente_id] ?? p.cliente_id ?? ''} • 
-        <a href="#/pendencia?id=${p.id}" class="link">${p.id}</a>
+    const cardHtml = (p) => {
+      const prioridade = String(p.prioridade || '').toLowerCase();
+      const isCritica = /^cr[ií]t/.test(prioridade);
+      const alert = isCritica
+        ? '<svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" style="margin-right:6px;flex:0 0 auto" title="Crítica"><polygon points="12,2 22,20 2,20" fill="#FFEB3B" stroke="#000" stroke-width="2"></polygon><text x="12" y="17" text-anchor="middle" font-size="16" font-weight="700" fill="#000">!</text></svg>'
+        : '';
+      return `
+        <div class="card" style="padding:8px;">
+          <div style="font-weight:600; margin-bottom:4px; display:flex; align-items:center;">
+            ${alert}
+            <span>${clienteMap[p.cliente_id] ?? p.cliente_id ?? ''} • <a href="#/pendencia?id=${p.id}" class="link">${p.id}</a></span>
+          </div>
+          <div class="hint" style="margin-bottom:4px;">${p.tecnico ?? ''}</div>
+          <div style="font-size:12px;">${sanitizeText(p.descricao) || ''}</div>
         </div>
-        <div class="hint" style="margin-bottom:4px;">${p.tecnico ?? ''}</div>
-        <div style="font-size:12px;">${sanitizeText(p.descricao) || ''}</div>
-      </div>
-    `;
+      `;
+    };
     STATUSES.forEach(s => {
       const el = document.getElementById('kb-' + slug(s));
       if (el) el.innerHTML = (byStatus[s] || []).map(cardHtml).join('');
@@ -558,8 +586,15 @@ export async function render() {
         const val = arr.slice().reverse().find(v => v && String(v).trim().length);
         return val || null;
       };
+      const nomeCliente = (fd.get('cliente_nome') || '').trim();
+      const hitCliente = (clientes || []).find(c => String(c.nome || '').toLowerCase() === nomeCliente.toLowerCase());
+      if (!hitCliente) {
+        const msgEl = modal.querySelector('#pFormMsg');
+        if (msgEl) msgEl.textContent = 'Selecione um cliente válido da lista.';
+        return;
+      }
       const payload = {
-        cliente_id: fd.get('cliente_id') || null,
+        cliente_id: hitCliente.id_cliente,
         modulo_id: Number(fd.get('modulo_id')),
         tipo: fd.get('tipo'),
         prioridade: fd.get('prioridade'),
@@ -595,9 +630,16 @@ export async function render() {
       try {
         const pendId = inserted?.id;
         if (pendId) {
-          await supabase
+          const { data: existing } = await supabase
             .from('pendencia_triagem')
-            .upsert({ pendencia_id: pendId, tecnico_relato: payload.tecnico }, { onConflict: 'pendencia_id' });
+            .select('pendencia_id')
+            .eq('pendencia_id', pendId)
+            .maybeSingle();
+          if (existing) {
+            await supabase.from('pendencia_triagem').update({ tecnico_relato: payload.tecnico }).eq('pendencia_id', pendId);
+          } else {
+            await supabase.from('pendencia_triagem').insert({ pendencia_id: pendId, tecnico_relato: payload.tecnico });
+          }
         }
       } catch {}
       if (msgEl) msgEl.textContent = 'Pendência criada com sucesso.';
@@ -655,7 +697,7 @@ export async function render() {
           if (tecSel) tecSel.innerHTML = ['<option value="">Selecione...</option>', ...usuarios.map(u => `<option value="${u.nome}">${u.nome}</option>`)].join('');
           // Preencher valores
           const setVal = (sel, val) => { if (sel && val != null) sel.value = String(val); };
-          setVal(modal.querySelector('select[name="cliente_id"]'), pend?.cliente_id ?? '');
+          setVal(modal.querySelector('input[name="cliente_nome"]'), clienteMap[pend?.cliente_id] ?? '');
           setVal(modSel, pend?.modulo_id ?? '');
           setVal(modal.querySelector('select[name="tipo"]'), pend?.tipo ?? '');
           setVal(modal.querySelector('select[name="prioridade"]'), pend?.prioridade ?? '');
@@ -725,8 +767,14 @@ export async function render() {
           form.addEventListener('submit', async (ev) => {
             ev.preventDefault();
             const fd = new FormData(form);
+            const nomeCliente = (fd.get('cliente_nome') || '').trim();
+            const hitCliente = (clientes || []).find(c => String(c.nome || '').toLowerCase() === nomeCliente.toLowerCase());
+            if (!hitCliente) {
+              if (msgEl) msgEl.textContent = 'Selecione um cliente válido da lista.';
+              return;
+            }
             const payload = {
-              cliente_id: fd.get('cliente_id') || null,
+              cliente_id: hitCliente.id_cliente,
               modulo_id: Number(fd.get('modulo_id')),
               tipo: fd.get('tipo'),
               prioridade: fd.get('prioridade'),
