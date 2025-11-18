@@ -32,6 +32,13 @@ body {
 /* Layout base */
 .app-shell { display: grid; grid-template-columns: 260px 1fr; grid-template-rows: 56px 1fr; height: 100vh; }
 .header { grid-column: 1 / span 2; display: flex; align-items: center; justify-content: space-between; background: var(--surface); padding: 0 16px; box-shadow: var(--shadow); position: sticky; top: 0; z-index: 10; }
+.sidebar { background: #0b1220; border-right: 1px solid #1f2937; padding: 12px; }
+:root[data-theme="light"] .sidebar { background: #f8fafc; border-right-color: #e5e7eb; }
+/* Quando ocultar via Menu, reorganiza para uma coluna e esconde a sidebar */
+.app-shell.sidebar-hidden { grid-template-columns: 1fr; }
+.app-shell.sidebar-hidden .header { grid-column: 1; }
+.app-shell.sidebar-hidden .content { grid-column: 1; }
+.app-shell.sidebar-hidden .sidebar { display: none !important; }
 .brand { display: flex; align-items: center; gap: 12px; font-weight: 600; }
 .brand .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--color-primary); box-shadow: var(--shadow); }
 .user-actions { display: flex; align-items: center; gap: 8px; }

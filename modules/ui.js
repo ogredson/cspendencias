@@ -39,6 +39,7 @@ export function initAppShell(mount) {
 
   document.getElementById('toggleSidebar').addEventListener('click', () => {
     const shell = document.querySelector('.app-shell');
+    if (!shell) return;
     shell.classList.toggle('sidebar-hidden');
   });
 
