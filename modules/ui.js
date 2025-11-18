@@ -38,9 +38,8 @@ export function initAppShell(mount) {
   });
 
   document.getElementById('toggleSidebar').addEventListener('click', () => {
-    const sb = document.getElementById('sidebar');
-    const show = getComputedStyle(sb).display === 'none';
-    sb.style.display = show ? 'block' : 'none';
+    const shell = document.querySelector('.app-shell');
+    shell.classList.toggle('sidebar-hidden');
   });
 
   document.getElementById('logoutBtn').addEventListener('click', async () => {

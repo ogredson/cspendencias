@@ -29,6 +29,7 @@ body {
   transition: background 0.2s ease, color 0.2s ease;
 }
 
+/* Layout base */
 .app-shell { display: grid; grid-template-columns: 260px 1fr; grid-template-rows: 56px 1fr; height: 100vh; }
 .header { grid-column: 1 / span 2; display: flex; align-items: center; justify-content: space-between; background: var(--surface); padding: 0 16px; box-shadow: var(--shadow); position: sticky; top: 0; z-index: 10; }
 .brand { display: flex; align-items: center; gap: 12px; font-weight: 600; }
