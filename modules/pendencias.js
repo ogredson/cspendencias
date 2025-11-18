@@ -42,7 +42,9 @@ function rowHtml(p) {
       <td>${formatDateBr(p.data_relato)}</td>
       <td>
         <button class="btn success" data-act="res">Resolvido</button>
-        <button class="btn" data-act="edit">Editar</button>
+        <button class="btn info" data-act="clone">Clonar</button>
+        <button class="btn os" data-act="os">O.S.</button>
+        <button class="btn light-warning" data-act="edit">Editar</button>
         <button class="btn danger" data-act="del">Excluir</button>
       </td>
     </tr>
@@ -187,11 +189,11 @@ function formHtml(clientes) {
       <details class="card" id="grpPS" style="margin-top:8px" open>
         <summary style="font-weight:700">📋 Programação & Suporte</summary>
         <div class="field">
-          <label>Situação: Informe o problema ou bug</label>
+          <label>Situação: Informe o problema, bug, modificação ou melhoria</label>
           <textarea class="input" name="situacao"></textarea>
         </div>
         <div class="field">
-          <label>Etapas: Como reproduzir o problema?</label>
+          <label>Etapas: Como reproduzir a situação?</label>
           <textarea class="input" name="etapas_reproducao"></textarea>
         </div>
         <div class="field">
@@ -299,6 +301,16 @@ function filtersHtml(clientes, usuarios = [], modulos = []) {
       <select id="fTecnico" class="input">${tecnicoOptions}</select>
       <input id="fDataIni" class="input" type="date" />
       <input id="fDataFim" class="input" type="date" />
+      <select id="fRangePreset" class="input" title="Período rápido">
+        <option value="ultimos_7" selected>Últimos 7 dias</option>
+        <option value="ultimos_15">Últimos 15 dias</option>
+        <option value="ultimos_30">Últimos 30 dias</option>
+        <option value="hoje">Hoje</option>
+        <option value="semana_atual">Semana atual</option>
+        <option value="proxima_semana">Próxima semana</option>
+        <option value="mes_atual">Mês atual</option>
+        <option value="este_trimestre">Este trimestre</option>
+      </select>
     </div>
     <div class="toolbar" style="margin-top:8px">
       <button class="btn success" id="applyFilters">Aplicar filtros</button>
@@ -429,8 +441,10 @@ export async function render() {
   const fimStr = toYMD(today);
   const iniEl = document.getElementById('fDataIni');
   const fimEl = document.getElementById('fDataFim');
+  const presetEl = document.getElementById('fRangePreset');
   if (iniEl) iniEl.value = iniStr;
   if (fimEl) fimEl.value = fimStr;
+  if (presetEl) presetEl.value = 'ultimos_7';
   state.filters.data_ini = iniStr;
   state.filters.data_fim = fimStr;
 
@@ -518,6 +532,7 @@ export async function render() {
     const ini = toYMD(s7); const fim = toYMD(t);
     if (iniEl) iniEl.value = ini;
     if (fimEl) fimEl.value = fim;
+    if (presetEl) presetEl.value = 'ultimos_7';
     // Reset lógico mantendo “últimos 7 dias”
     state.filters = { data_ini: ini, data_fim: fim };
     state.page = 1;
@@ -582,7 +597,7 @@ export async function render() {
       if (grpOutro) { grpOutro.style.display = showOutro ? '' : 'none'; grpOutro.open = showOutro; }
     };
     updateGroupsByType();
-    if (tipoSel) tipoSel.addEventListener('change', updateGroupsByType);
+    if (tipoSel) tipoSel.addEventListener('change', () => { updateGroupsByType(); updateTypeTabs(); });
     const typeTabs = modal.querySelectorAll('.type-tab');
     const updateTypeTabs = () => {
       const cur = (tipoSel?.value || '').trim();
@@ -685,6 +700,64 @@ export async function render() {
     el.addEventListener('input', updateFilters);
   });
 
+  // Presets de período
+  const computeRange = (key) => {
+    const t = new Date();
+    const toY = (d) => toYMD(d);
+    if (key === 'hoje') {
+      const d = new Date(t);
+      return { ini: toY(d), fim: toY(d) };
+    }
+    if (key === 'ultimos_7') {
+      const s = new Date(t); s.setDate(t.getDate() - 7);
+      return { ini: toY(s), fim: toY(t) };
+    }
+    if (key === 'ultimos_15') {
+      const s = new Date(t); s.setDate(t.getDate() - 15);
+      return { ini: toY(s), fim: toY(t) };
+    }
+    if (key === 'ultimos_30') {
+      const s = new Date(t); s.setDate(t.getDate() - 30);
+      return { ini: toY(s), fim: toY(t) };
+    }
+    if (key === 'semana_atual') {
+      const dow = t.getDay(); // 0 dom, 1 seg, ...
+      const offsetToMon = (dow + 6) % 7; // seg=0
+      const start = new Date(t); start.setDate(t.getDate() - offsetToMon);
+      const end = new Date(start); end.setDate(start.getDate() + 6);
+      return { ini: toY(start), fim: toY(end) };
+    }
+    if (key === 'proxima_semana') {
+      const dow = t.getDay();
+      const offsetToMon = (dow + 6) % 7;
+      const nextMon = new Date(t); nextMon.setDate(t.getDate() - offsetToMon + 7);
+      const end = new Date(nextMon); end.setDate(nextMon.getDate() + 6);
+      return { ini: toY(nextMon), fim: toY(end) };
+    }
+    if (key === 'mes_atual') {
+      const start = new Date(t.getFullYear(), t.getMonth(), 1);
+      const end = new Date(t.getFullYear(), t.getMonth() + 1, 0);
+      return { ini: toY(start), fim: toY(end) };
+    }
+    if (key === 'este_trimestre') {
+      const month = t.getMonth();
+      const quarterStartMonth = Math.floor(month / 3) * 3;
+      const start = new Date(t.getFullYear(), quarterStartMonth, 1);
+      const end = new Date(t.getFullYear(), quarterStartMonth + 3, 0);
+      return { ini: toY(start), fim: toY(end) };
+    }
+    return { ini: iniStr, fim: fimStr };
+  };
+  if (presetEl) presetEl.addEventListener('change', () => {
+    const { ini, fim } = computeRange(presetEl.value);
+    if (iniEl) iniEl.value = ini;
+    if (fimEl) fimEl.value = fim;
+    state.filters.data_ini = ini;
+    state.filters.data_fim = fim;
+    state.page = 1;
+    debouncedApply();
+  });
+
   // Eventos exclusivos do Grid (com guardas)
   const bindGridEvents = () => {
     const virtWrap = document.getElementById('virtWrap');
@@ -727,6 +800,10 @@ export async function render() {
           setVal(tecSel, pend?.tecnico ?? '');
           const toYMD = (d) => {
             if (!d) return '';
+            if (typeof d === 'string') {
+              const m = d.match(/^(\d{4}-\d{2}-\d{2})/);
+              if (m) return m[1];
+            }
             const dd = new Date(d);
             if (isNaN(dd.getTime())) return '';
             const y = dd.getFullYear(), m = String(dd.getMonth() + 1).padStart(2, '0'), day = String(dd.getDate()).padStart(2, '0');
@@ -783,7 +860,7 @@ export async function render() {
             if (grpOutro) { grpOutro.style.display = showOutro ? '' : 'none'; grpOutro.open = showOutro; }
           };
           updateGroupsByType();
-          if (tipoSel) tipoSel.addEventListener('change', updateGroupsByType);
+          if (tipoSel) tipoSel.addEventListener('change', () => { updateGroupsByType(); updateTypeTabs(); });
           const typeTabs = modal.querySelectorAll('.type-tab');
           const updateTypeTabs = () => {
             const cur = (tipoSel?.value || '').trim();
@@ -903,6 +980,351 @@ export async function render() {
             apply();
           });
           return;
+        } else if (act === 'clone') {
+          const { data: pend } = await supabase.from('pendencias').select('*').eq('id', id).maybeSingle();
+          const modal = openModal(formHtml(clientes));
+          // Popular selects
+          const modSel = modal.querySelector('#moduloSel');
+          const tecSel = modal.querySelector('#tecnicoSel');
+          if (modSel) modSel.innerHTML = ['<option value="">Selecione...</option>', ...modulos.map(m => `<option value="${m.id}">${m.nome}</option>`)].join('');
+          if (tecSel) tecSel.innerHTML = ['<option value="">Selecione...</option>', ...usuarios.map(u => `<option value="${u.nome}">${u.nome}</option>`)].join('');
+          // Prefill campos básicos
+          const setVal = (sel, val) => { if (sel && val != null) sel.value = String(val); };
+          setVal(modal.querySelector('input[name="cliente_nome"]'), clienteMap[pend?.cliente_id] ?? '');
+          setVal(modSel, pend?.modulo_id ?? '');
+          setVal(modal.querySelector('select[name="tipo"]'), pend?.tipo ?? '');
+          setVal(modal.querySelector('select[name="prioridade"]'), pend?.prioridade ?? '');
+          setVal(tecSel, pend?.tecnico ?? '');
+          // Datas: hoje por padrão
+          const toYMD = (d) => { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; };
+          const dr = modal.querySelector('input[name="data_relato"]');
+          if (dr) dr.value = toYMD(new Date());
+          // Limpar campos não clonados
+          setVal(modal.querySelector('input[name="previsao_conclusao"]'), '');
+          setVal(modal.querySelector('input[name="descricao"]'), '');
+          setVal(modal.querySelector('input[name="link_trello"]'), '');
+          modal.querySelectorAll('textarea[name="situacao"]').forEach(el => el.value = '');
+          modal.querySelectorAll('textarea[name="etapas_reproducao"]').forEach(el => el.value = '');
+          modal.querySelectorAll('input[name="frequencia"]').forEach(el => el.value = '');
+          modal.querySelectorAll('textarea[name="informacoes_adicionais"]').forEach(el => el.value = '');
+          modal.querySelectorAll('textarea[name="escopo"]').forEach(el => el.value = '');
+          modal.querySelectorAll('textarea[name="objetivo"]').forEach(el => el.value = '');
+          modal.querySelectorAll('textarea[name="recursos_necessarios"]').forEach(el => el.value = '');
+          const solEl = modal.querySelector('textarea[name="solucao_orientacao"]'); if (solEl) solEl.value = '';
+          // Tabs e fechamento
+          const tabs = modal.querySelectorAll('.tab');
+          tabs.forEach(tab => tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.toggle('active', t === tab));
+            modal.querySelectorAll('[data-tab-content]').forEach(c => {
+              c.style.display = c.getAttribute('data-tab-content') === tab.getAttribute('data-tab') ? '' : 'none';
+            });
+          }));
+          const closeBtn = modal.querySelector('#closeModalBtn');
+          if (closeBtn && modal.closeModal) closeBtn.addEventListener('click', () => modal.closeModal());
+          // Mostrar/ocultar grupos conforme tipo
+          const tipoSel = modal.querySelector('select[name="tipo"]');
+          const grpPS = modal.querySelector('#grpPS');
+          const grpImpl = modal.querySelector('#grpImpl');
+          const grpAtual = modal.querySelector('#grpAtual');
+          const grpOutro = modal.querySelector('#grpOutro');
+          const updateGroupsByType = () => {
+            const tipo = (tipoSel?.value || '').trim();
+            const showPS = tipo === 'Programação' || tipo === 'Suporte';
+            const showImpl = tipo === 'Implantação';
+            const showAtual = tipo === 'Atualizacao';
+            const showOutro = tipo === 'Outro';
+            if (grpPS) { grpPS.style.display = showPS ? '' : 'none'; grpPS.open = showPS; }
+            if (grpImpl) { grpImpl.style.display = showImpl ? '' : 'none'; grpImpl.open = showImpl; }
+            if (grpAtual) { grpAtual.style.display = showAtual ? '' : 'none'; grpAtual.open = showAtual; }
+            if (grpOutro) { grpOutro.style.display = showOutro ? '' : 'none'; grpOutro.open = showOutro; }
+          };
+          updateGroupsByType();
+          if (tipoSel) tipoSel.addEventListener('change', updateGroupsByType);
+          // Sincronizar abas de tipo
+          const typeTabs = modal.querySelectorAll('.type-tab');
+          const updateTypeTabs = () => {
+            const cur = (tipoSel?.value || '').trim();
+            typeTabs.forEach(btn => {
+              const isActive = btn.getAttribute('data-type') === cur;
+              btn.classList.toggle('primary', isActive);
+              btn.classList.toggle('secondary', !isActive);
+            });
+          };
+          updateTypeTabs();
+          typeTabs.forEach(btn => btn.addEventListener('click', () => {
+            const t = btn.getAttribute('data-type');
+            if (tipoSel) tipoSel.value = t;
+            updateGroupsByType();
+            updateTypeTabs();
+          }));
+          if (tipoSel) { tipoSel.dispatchEvent(new Event('change')); }
+
+          // Salvar (create) reaproveitando lógica de "Novo"
+          const form = modal.querySelector('#pForm');
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fd = new FormData(form);
+            const getLast = (name) => {
+              const arr = fd.getAll(name) || [];
+              const val = arr.slice().reverse().find(v => v && String(v).trim().length);
+              return val || null;
+            };
+            const nomeCliente = (fd.get('cliente_nome') || '').trim();
+            const hitCliente = (clientes || []).find(c => String(c.nome || '').toLowerCase() === nomeCliente.toLowerCase());
+            const msgEl = modal.querySelector('#pFormMsg');
+            if (!hitCliente) {
+              if (msgEl) msgEl.textContent = 'Selecione um cliente válido da lista.';
+              return;
+            }
+            const payload = {
+              cliente_id: hitCliente.id_cliente,
+              modulo_id: Number(fd.get('modulo_id')),
+              tipo: fd.get('tipo'),
+              prioridade: fd.get('prioridade'),
+              status: 'Triagem',
+              tecnico: fd.get('tecnico'),
+              data_relato: fd.get('data_relato'),
+              previsao_conclusao: fd.get('previsao_conclusao') || null,
+              descricao: fd.get('descricao'),
+              link_trello: fd.get('link_trello') || null,
+              situacao: getLast('situacao'),
+              etapas_reproducao: getLast('etapas_reproducao'),
+              frequencia: getLast('frequencia'),
+              informacoes_adicionais: getLast('informacoes_adicionais'),
+              escopo: getLast('escopo'),
+              objetivo: getLast('objetivo'),
+              recursos_necessarios: getLast('recursos_necessarios'),
+              solucao_orientacao: getLast('solucao_orientacao'),
+            };
+            const supa = getSupabase();
+            const { data: inserted, error } = await supa
+              .from('pendencias')
+              .insert(payload)
+              .select('id')
+              .single();
+            if (error) { if (msgEl) msgEl.textContent = 'Erro ao salvar: ' + error.message; return; }
+            try {
+              const pendId = inserted?.id;
+              if (pendId) {
+                const { data: existing } = await supa
+                  .from('pendencia_triagem')
+                  .select('pendencia_id')
+                  .eq('pendencia_id', pendId)
+                  .maybeSingle();
+                if (existing) {
+                  await supa.from('pendencia_triagem').update({ tecnico_relato: payload.tecnico }).eq('pendencia_id', pendId);
+                } else {
+                  await supa.from('pendencia_triagem').insert({ pendencia_id: pendId, tecnico_relato: payload.tecnico });
+                }
+              }
+            } catch {}
+            if (msgEl) msgEl.textContent = 'Pendência criada com sucesso.';
+            if (modal.closeModal) modal.closeModal();
+            state.page = 1;
+            await apply();
+          });
+        } else if (act === 'os') {
+          const { data: pend } = await supabase.from('pendencias').select('*').eq('id', id).maybeSingle();
+          const formatPendId = (val) => {
+            const s = String(val ?? '');
+            const raw = s.replace(/^ID-/, '');
+            return 'ID-' + String(raw).padStart(5, '0');
+          };
+          const pid = formatPendId(id);
+          const clienteNome = clienteMap[pend?.cliente_id] ?? pend?.cliente_id ?? '—';
+          const moduloNome = moduloMap[pend?.modulo_id] ?? pend?.modulo_id ?? '—';
+          const tipo = pend?.tipo || '—';
+          const prio = pend?.prioridade || '—';
+          const tecnico = pend?.tecnico || '—';
+          const status = pend?.status || '—';
+          const dataAbertura = formatDateBr(pend?.data_relato);
+          const prevLabel = status === 'Resolvido' ? 'Data Conclusão' : 'Previsão de Conclusão';
+          const prevValue = pend?.previsao_conclusao ? formatDateBr(pend?.previsao_conclusao) : 'a definir';
+          const hojeStr = formatDateBr(new Date());
+          const fileTitle = `CS_OS_Pendência_${id}`;
+          const titulo = String(pend?.descricao || '').trim();
+
+          const blocoPS = `
+            <tr><th>Situação</th><td class='pre'>${sanitizeText(pend?.situacao ?? '—')}</td></tr>
+            <tr><th>Etapas</th><td class='pre'>${sanitizeText(pend?.etapas_reproducao ?? '—')}</td></tr>
+            <tr><th>Frequência</th><td>${sanitizeText(pend?.frequencia ?? '—')}</td></tr>
+            <tr><th>Informações</th><td class='pre'>${sanitizeText(pend?.informacoes_adicionais ?? '—')}</td></tr>
+          `;
+          const blocoImpl = `
+            <tr><th>Escopo</th><td class='pre'>${sanitizeText(pend?.escopo ?? '—')}</td></tr>
+            <tr><th>Objetivo</th><td class='pre'>${sanitizeText(pend?.objetivo ?? '—')}</td></tr>
+            <tr><th>Recursos</th><td class='pre'>${sanitizeText(pend?.recursos_necessarios ?? '—')}</td></tr>
+            <tr><th>Informações</th><td class='pre'>${sanitizeText(pend?.informacoes_adicionais ?? '—')}</td></tr>
+          `;
+          const blocoAtual = `
+            <tr><th>Escopo</th><td class='pre'>${sanitizeText(pend?.escopo ?? '—')}</td></tr>
+            <tr><th>Motivação</th><td class='pre'>${sanitizeText(pend?.objetivo ?? '—')}</td></tr>
+            <tr><th>Impacto</th><td class='pre'>${sanitizeText(pend?.informacoes_adicionais ?? '—')}</td></tr>
+            <tr><th>Requisitos específicos</th><td class='pre'>${sanitizeText(pend?.recursos_necessarios ?? '—')}</td></tr>
+          `;
+          const blocoOutro = `
+            <tr><th>Situação</th><td class='pre'>${sanitizeText(pend?.situacao ?? '—')}</td></tr>
+          `;
+          const extra =
+            tipo === 'Programação' || tipo === 'Suporte' ? blocoPS :
+            tipo === 'Implantação' ? blocoImpl :
+            tipo === 'Atualizacao' ? blocoAtual :
+            tipo === 'Outro' ? blocoOutro : '';
+
+          const modal = openModal(`
+            <div class='card'>
+              <h3>Ordem de Serviço — ${pid}${titulo ? ` • ${sanitizeText(titulo)}` : ''}</h3>
+              <div>
+                <table class='details-table'>
+                  <tbody>
+                    <tr><th>Cliente</th><td>${sanitizeText(clienteNome)}</td></tr>
+                    <tr><th>Módulo</th><td>${sanitizeText(moduloNome)}</td></tr>
+                    <tr><th>Tipo</th><td>${sanitizeText(tipo)}</td></tr>
+                    <tr><th>Técnico</th><td>${sanitizeText(tecnico)}</td></tr>
+                    <tr><th>Prioridade</th><td><span class='prio ${prio}' aria-label='${prio}'>${prio}</span></td></tr>
+                    <tr><th>Data Abertura</th><td>${dataAbertura}</td></tr>
+                    <tr><th>${prevLabel}</th><td>${prevValue}</td></tr>
+                    <tr><th>Título</th><td class='pre'>${sanitizeText(titulo)}</td></tr>
+                    ${extra}
+                    <tr><th>Data atual</th><td>${hojeStr}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class='toolbar' style='justify-content:flex-end'>
+                <button class='btn' id='osFechar'>Fechar</button>
+                <button class='btn' id='osCopiar'>Copiar</button>
+                <button class='btn warning' id='osImprimir'>Imprimir</button>
+              </div>
+            </div>
+          `);
+
+          const osText = [
+            `Ordem de Serviço — ${pid}${titulo ? ` • ${titulo}` : ''}`,
+            `Cliente: ${clienteNome}`,
+            `Módulo: ${moduloNome}`,
+            `Tipo: ${tipo}`,
+            `Técnico: ${tecnico}`,
+            `Prioridade: ${prio}`,
+            `Data Abertura: ${dataAbertura}`,
+            `${prevLabel}: ${prevValue}`,
+            `Título: ${titulo}`,
+            tipo === 'Programação' || tipo === 'Suporte' ? [
+              `Situação: ${pend?.situacao ?? '—'}`,
+              `Etapas: ${pend?.etapas_reproducao ?? '—'}`,
+              `Frequência: ${pend?.frequencia ?? '—'}`,
+              `Informações: ${pend?.informacoes_adicionais ?? '—'}`
+            ].join('\n')
+            : tipo === 'Implantação' ? [
+              `Escopo: ${pend?.escopo ?? '—'}`,
+              `Objetivo: ${pend?.objetivo ?? '—'}`,
+              `Recursos: ${pend?.recursos_necessarios ?? '—'}`,
+              `Informações: ${pend?.informacoes_adicionais ?? '—'}`
+            ].join('\n')
+            : tipo === 'Atualizacao' ? [
+              `Escopo: ${pend?.escopo ?? '—'}`,
+              `Motivação: ${pend?.objetivo ?? '—'}`,
+              `Impacto: ${pend?.informacoes_adicionais ?? '—'}`,
+              `Requisitos específicos: ${pend?.recursos_necessarios ?? '—'}`
+            ].join('\n') : tipo === 'Outro' ? [
+              `Situação: ${pend?.situacao ?? '—'}`
+            ].join('\n') : '',
+            `Data atual: ${hojeStr}`
+          ].filter(Boolean).join('\n');
+
+          const closeBtn = modal.querySelector('#osFechar');
+          if (closeBtn && modal.closeModal) closeBtn.addEventListener('click', () => modal.closeModal());
+
+          const copyBtn = modal.querySelector('#osCopiar');
+          if (copyBtn) copyBtn.addEventListener('click', async () => {
+            try { await navigator.clipboard.writeText(osText); alert('Ordem de Serviço copiada.'); }
+            catch { alert('Não foi possível copiar.'); }
+          });
+
+          const printBtn = modal.querySelector('#osImprimir');
+          if (printBtn) printBtn.addEventListener('click', () => {
+            const css = `
+              @page { margin: 18mm; }
+              body { font-family: Segoe UI, Arial, sans-serif; color: #000; }
+              .os-header { text-align: center; margin-bottom: 10mm; }
+              .os-title { font-size: 20px; font-weight: 700; border-bottom: 2px solid #000; display: inline-block; padding: 4px 12px; }
+              .os-section { margin-bottom: 6mm; }
+              table { width: 100%; border-collapse: collapse; }
+              th, td { border: 1px solid #000; padding: 6px 8px; vertical-align: top; }
+              th { background: #f2f2f2; font-weight: 700; text-align: left; }
+              .os-meta-table th { width: 160px; }
+              .box { border: 1px solid #000; padding: 10px; min-height: 28mm; }
+              .pre { white-space: pre-wrap; }
+              .sign { margin-top: 10mm; }
+              .sign-row { display: flex; align-items: center; gap: 10mm; margin-top: 8mm; }
+              .sign-line { border-top: 1px solid #000; flex: 1; }
+              .sign-label { width: 60mm; text-align: center; }
+            `;
+            const html = `
+              <html><head><title>${fileTitle}</title><style>${css}</style></head>
+              <body>
+                <div class="os-header">
+                  <div class="os-title">Ordem de Serviço Nº ${pid}</div>
+                </div>
+                <div class="os-section">
+                  <table class="os-meta-table">
+                    <tbody>
+                      <tr>
+                        <th>Número da OS</th><td>${pid}</td>
+                        <th>Data Abertura</th><td>${dataAbertura}</td>
+                        <th>${prevLabel}</th><td>${prevValue}</td>
+                      </tr>
+                      <tr>
+                        <th>Cliente</th><td colspan="5">${sanitizeText(clienteNome)}</td>
+                      </tr>
+                      <tr>
+                        <th>Tipo de Serviço</th><td colspan="2">${sanitizeText(tipo)}</td>
+                        <th>Técnico</th><td colspan="2">${sanitizeText(tecnico)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="os-section">
+                  <table>
+                    <tbody>
+                      <tr><th>Título</th><td class="pre">${sanitizeText(titulo)}</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="os-section">
+                  <table>
+                    <tbody>
+                      ${extra}
+                    </tbody>
+                  </table>
+                </div>
+                <div class="sign">
+                  <table>
+                    <tbody>
+                      <tr><th>Data atual</th><td>${hojeStr}</td></tr>
+                    </tbody>
+                  </table>
+                  <div class="sign-row"><div class="sign-line"></div><div class="sign-label">Assinatura do responsável</div></div>
+                  <div class="sign-row"><div class="sign-line"></div><div class="sign-label">Assinatura do cliente</div></div>
+                </div>
+              </body></html>`;
+            const frame = document.createElement('iframe');
+            frame.style.position = 'fixed'; frame.style.right = '0'; frame.style.bottom = '0';
+            frame.style.width = '0'; frame.style.height = '0'; frame.style.border = '0';
+            frame.srcdoc = html;
+            document.body.appendChild(frame);
+            const prevTitle = document.title;
+            const cleanup = () => { try { document.body.removeChild(frame); document.title = prevTitle; } catch {} };
+            frame.onload = () => {
+              const w = frame.contentWindow;
+              if (!w) { cleanup(); return; }
+              try { w.document.title = fileTitle; } catch {}
+              document.title = fileTitle;
+              w.focus();
+              w.onafterprint = cleanup;
+              w.print();
+              setTimeout(cleanup, 5000);
+            };
+          });
         }
       });
     }

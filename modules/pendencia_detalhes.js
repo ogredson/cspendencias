@@ -178,7 +178,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
   if (pend?.tipo === 'Programação' || pend?.tipo === 'Suporte') {
     detalhesHtml = `
       <div class="card">
-        <h3>📋 Programação & Suporte</h3>
+        <div class="section-head primary">📋 Programação & Suporte</div>
         <table class="table details-table" style="margin-top:8px;">
           <tbody>
             <tr><th>Situação:</th><td class="pre">${pend?.situacao ?? 'Não informado'}</td></tr>
@@ -191,7 +191,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
   } else if (pend?.tipo === 'Implantação') {
     detalhesHtml = `
       <div class="card">
-        <h3>🚀 Implantação</h3>
+        <div class="section-head info">🚀 Implantação</div>
         <table class="table details-table" style="margin-top:8px;">
           <tbody>
             <tr><th>Escopo:</th><td class="pre">${pend?.escopo ?? 'Não informado'}</td></tr>
@@ -204,7 +204,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
   } else if (pend?.tipo === 'Atualizacao') {
     detalhesHtml = `
       <div class="card">
-        <h3>🔄 Atualização</h3>
+        <div class="section-head primary">🔄 Atualização</div>
         <table class="table details-table" style="margin-top:8px;">
           <tbody>
             <tr><th>Escopo:</th><td class="pre">${pend?.escopo ?? 'Não informado'}</td></tr>
@@ -217,7 +217,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
   } else if (pend?.tipo === 'Outro') {
     detalhesHtml = `
       <div class="card">
-        <h3>🧩 Outra Pendência</h3>
+        <div class="section-head neutral">🧩 Outra Pendência</div>
         <table class="table details-table" style="margin-top:8px;">
           <tbody>
             <tr><th>Situação:</th><td class="pre">${pend?.situacao ?? 'Não informado'}</td></tr>
@@ -275,7 +275,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
         </div>
 
         <div class="card">
-          <h3>Controle de Fluxo</h3>
+          <div class="section-head warning">Controle de Fluxo</div>
           <div><b>Técnico do Relato:</b> ${tri?.tecnico_relato ?? pend?.tecnico ?? ''}</div>
           <div class="field">
             <label>Técnico de Triagem</label>
@@ -285,7 +285,6 @@ const fmt = (dt) => formatDateTimeBr(dt);
             </div>
           </div>
           <div class="toolbar" style="margin-top:8px">
-            <button class="btn light-warning" id="btnOrdemServico">Gerar Ordem de Serviço</button>
             <button class="btn primary" id="btnAnalise">Aceitar Análise</button>
             <button class="btn success" id="btnAceitar">Aceitar Resolução</button>
             <button class="btn test" id="btnTestes">Enviar para Testes</button>
@@ -294,7 +293,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
           </div>
         </div>
         <div class="card">
-          <h3>Histórico</h3>
+          <div class="section-head neutral">Histórico</div>
           <div class="toolbar" style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
             <input id="histFilter" class="input" placeholder="Filtrar por texto..." style="flex:1; min-width:240px" />
             <button class="btn" id="histClear">Limpar filtro</button>
@@ -330,12 +329,12 @@ const fmt = (dt) => formatDateTimeBr(dt);
       <div class="col-6">
         ${detalhesHtml}
         <div class="card" style="border-left:4px solid #10B981; background:#F0FDF4;">
-          <h3>💡 Solução / Orientação</h3>
+          <div class="section-head success">💡 Solução / Orientação</div>
           <div style="white-space:pre-wrap;">${pend?.solucao_orientacao ? pend.solucao_orientacao : '<span style="opacity:0.7">Não informado</span>'}</div>
         </div>
         <div id="trelloPreviewSlot"></div>
         <div class="card" style="min-height:320px">
-          <h3>Gráfico Timeline por Status</h3>
+          <div class="section-head info">Gráfico Timeline por Status</div>
           <div style="padding:12px;">
             <div id="timelineBar" style="display:flex; gap:4px; height:40px; background:#eee; border-radius:6px; padding:4px;"></div>
             <div id="timelineLegend" style="font-size:12px; margin-top:8px; display:grid; grid-template-columns: repeat(3, 1fr); gap:6px;"></div>
@@ -728,137 +727,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
     render();
   });
 
-  // Botão: Gerar Ordem de Serviço
-  const osBtn = document.getElementById('btnOrdemServico');
-  if (osBtn) osBtn.addEventListener('click', () => {
-    const pid = formatPendId(id);
-    const clienteNome = (clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome || pend?.cliente_id || '—';
-    const moduloNome = (modulos || []).find(m => m.id === pend?.modulo_id)?.nome || pend?.modulo_id || '—';
-    const tipo = pend?.tipo || '—';
-    const prio = pend?.prioridade || '—';
-    const tecnico = pend?.tecnico || tri?.tecnico_relato || '—';
-    const dataRel = formatDateBr(pend?.data_relato);
-    const titulo = String(pend?.descricao || '').trim();
-
-    const blocoPS = `
-      <tr><th>Situação</th><td class='pre'>${pend?.situacao ?? '—'}</td></tr>
-      <tr><th>Etapas</th><td class='pre'>${pend?.etapas_reproducao ?? '—'}</td></tr>
-      <tr><th>Frequência</th><td>${pend?.frequencia ?? '—'}</td></tr>
-      <tr><th>Informações</th><td class='pre'>${pend?.informacoes_adicionais ?? '—'}</td></tr>
-    `;
-    const blocoImpl = `
-      <tr><th>Escopo</th><td class='pre'>${pend?.escopo ?? '—'}</td></tr>
-      <tr><th>Objetivo</th><td class='pre'>${pend?.objetivo ?? '—'}</td></tr>
-      <tr><th>Recursos</th><td class='pre'>${pend?.recursos_necessarios ?? '—'}</td></tr>
-      <tr><th>Informações</th><td class='pre'>${pend?.informacoes_adicionais ?? '—'}</td></tr>
-    `;
-    const blocoAtual = `
-      <tr><th>Escopo</th><td class='pre'>${pend?.escopo ?? '—'}</td></tr>
-      <tr><th>Motivação</th><td class='pre'>${pend?.objetivo ?? '—'}</td></tr>
-      <tr><th>Impacto</th><td class='pre'>${pend?.informacoes_adicionais ?? '—'}</td></tr>
-      <tr><th>Requisitos específicos</th><td class='pre'>${pend?.recursos_necessarios ?? '—'}</td></tr>
-    `;
-    const blocoOutro = `
-      <tr><th>Situação</th><td class='pre'>${pend?.situacao ?? '—'}</td></tr>
-    `;
-    const extra =
-      tipo === 'Programação' || tipo === 'Suporte' ? blocoPS :
-      tipo === 'Implantação' ? blocoImpl :
-      tipo === 'Atualizacao' ? blocoAtual :
-      tipo === 'Outro' ? blocoOutro : '';
-
-    const modal = openModal(`
-      <div class='card'>
-        <h3>Ordem de Serviço — ${pid}${titulo ? ` • ${sanitizeText(titulo)}` : ''}</h3>
-        <div>
-          <table class='details-table'>
-            <tbody>
-              <tr><th>Cliente</th><td>${sanitizeText(clienteNome)}</td></tr>
-              <tr><th>Módulo</th><td>${sanitizeText(moduloNome)}</td></tr>
-              <tr><th>Tipo</th><td>${sanitizeText(tipo)}</td></tr>
-              <tr><th>Técnico</th><td>${sanitizeText(tecnico)}</td></tr>
-              <tr><th>Prioridade</th><td><span class='prio ${prio}' aria-label='${prio}'>${prio}</span></td></tr>
-              <tr><th>Data do relato</th><td>${dataRel}</td></tr>
-              <tr><th>Título</th><td class='pre'>${sanitizeText(titulo)}</td></tr>
-              ${extra}
-            </tbody>
-          </table>
-        </div>
-        <div class='toolbar' style='justify-content:flex-end'>
-          <button class='btn' id='osFechar'>Fechar</button>
-          <button class='btn' id='osCopiar'>Copiar</button>
-          <button class='btn warning' id='osImprimir'>Imprimir</button>
-        </div>
-      </div>
-    `);
-
-    const osText = [
-      `Ordem de Serviço — ${pid}${titulo ? ` • ${titulo}` : ''}`,
-      `Cliente: ${clienteNome}`,
-      `Módulo: ${moduloNome}`,
-      `Tipo: ${tipo}`,
-      `Técnico: ${tecnico}`,
-      `Prioridade: ${prio}`,
-      `Data do relato: ${dataRel}`,
-      `Título: ${titulo}`,
-      tipo === 'Programação' || tipo === 'Suporte' ? [
-        `Situação: ${pend?.situacao ?? '—'}`,
-        `Etapas: ${pend?.etapas_reproducao ?? '—'}`,
-        `Frequência: ${pend?.frequencia ?? '—'}`,
-        `Informações: ${pend?.informacoes_adicionais ?? '—'}`
-      ].join('\n')
-      : tipo === 'Implantação' ? [
-        `Escopo: ${pend?.escopo ?? '—'}`,
-        `Objetivo: ${pend?.objetivo ?? '—'}`,
-        `Recursos: ${pend?.recursos_necessarios ?? '—'}`,
-        `Informações: ${pend?.informacoes_adicionais ?? '—'}`
-      ].join('\n')
-      : tipo === 'Atualizacao' ? [
-        `Escopo: ${pend?.escopo ?? '—'}`,
-        `Motivação: ${pend?.objetivo ?? '—'}`,
-        `Impacto: ${pend?.informacoes_adicionais ?? '—'}`,
-        `Requisitos específicos: ${pend?.recursos_necessarios ?? '—'}`
-      ].join('\n') : tipo === 'Outro' ? [
-        `Situação: ${pend?.situacao ?? '—'}`
-      ].join('\n') : ''
-    ].filter(Boolean).join('\n');
-
-    const closeBtn = modal.querySelector('#osFechar');
-    if (closeBtn && modal.closeModal) closeBtn.addEventListener('click', () => modal.closeModal());
-
-    const copyBtn = modal.querySelector('#osCopiar');
-    if (copyBtn) copyBtn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(osText);
-        alert('Ordem de Serviço copiada para a área de transferência.');
-      } catch {
-        alert('Não foi possível copiar. Verifique permissões do navegador.');
-      }
-    });
-
-    const printBtn = modal.querySelector('#osImprimir');
-    if (printBtn) printBtn.addEventListener('click', () => {
-      const w = window.open('', 'os_print');
-      const css = `
-        body { font-family: system-ui, sans-serif; margin: 24px; }
-        h1, h2, h3 { margin: 0 0 12px 0; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
-        th { width: 200px; background: #f9f9f9; text-align: left; }
-        .pre { white-space: pre-wrap; }
-      `;
-      w.document.write(`
-        <html><head><title>Ordem de Serviço — ${pid}</title><style>${css}</style></head>
-        <body>
-          <h2>Ordem de Serviço — ${pid}${titulo ? ` • ${sanitizeText(titulo)}` : ''}</h2>
-          ${modal.querySelector('table').outerHTML}
-        </body></html>
-      `);
-      w.document.close();
-      w.focus();
-      w.print();
-    });
-  });
+  // Botão Ordem de Serviço movido para o Grid
 
   // Eventos de filtro e paginação do histórico
   const onFilterInput = debounce((ev) => {
