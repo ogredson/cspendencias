@@ -177,8 +177,15 @@ function formHtml(clientes) {
           <input class="input" type="url" name="link_trello" placeholder="https://trello.com/c/..." />
         </div>
       </div>
-      <div class="card" id="grpPS" style="margin-top:8px">
-        <h4>📋 Programação & Suporte</h4>
+      <div class="toolbar" style="justify-content:flex-start; margin:8px 0;">
+        <button type="button" class="btn secondary type-tab" data-type="Programação">🛠 Programação</button>
+        <button type="button" class="btn secondary type-tab" data-type="Suporte">🧩 Suporte</button>
+        <button type="button" class="btn secondary type-tab" data-type="Implantação">🚀 Implantação</button>
+        <button type="button" class="btn secondary type-tab" data-type="Atualizacao">🔄 Atualização</button>
+        <button type="button" class="btn secondary type-tab" data-type="Outro">📁 Outro</button>
+      </div>
+      <details class="card" id="grpPS" style="margin-top:8px" open>
+        <summary style="font-weight:700">📋 Programação & Suporte</summary>
         <div class="field">
           <label>Situação: Informe o problema ou bug</label>
           <textarea class="input" name="situacao"></textarea>
@@ -195,9 +202,9 @@ function formHtml(clientes) {
           <label>Informações: Detalhes adicionais (Versao do sistema, Plataformas: Windows/Linux, Banco de dados etc.)</label>
           <textarea class="input" name="informacoes_adicionais"></textarea>
         </div>
-      </div>
-      <div class="card" id="grpImpl" style="margin-top:8px">
-        <h4>🚀 Implantação</h4>
+      </details>
+      <details class="card" id="grpImpl" style="margin-top:8px">
+        <summary style="font-weight:700">🚀 Implantação</summary>
         <div class="field">
           <label>Escopo: Qual o escopo da implantação?</label>
           <textarea class="input" name="escopo"></textarea>
@@ -214,9 +221,9 @@ function formHtml(clientes) {
           <label>Informações: Observações importantes</label>
           <textarea class="input" name="informacoes_adicionais"></textarea>
         </div>
-      </div>
-      <div class="card" id="grpAtual" style="margin-top:8px">
-        <h4>🔄 Atualização</h4>
+      </details>
+      <details class="card" id="grpAtual" style="margin-top:8px">
+        <summary style="font-weight:700">🔄 Atualização</summary>
         <div class="field">
           <label>Escopo: O que será atualizado?</label>
           <textarea class="input" name="escopo"></textarea>
@@ -233,14 +240,14 @@ function formHtml(clientes) {
           <label>Requisitos específicos</label>
           <textarea class="input" name="recursos_necessarios"></textarea>
         </div>
-      </div>
-      <div class="card" id="grpOutro" style="margin-top:8px">
-        <h4>🧩 Outra Pendência</h4>
+      </details>
+      <details class="card" id="grpOutro" style="margin-top:8px">
+        <summary style="font-weight:700">📁 Outra Pendência</summary>
         <div class="field">
           <label>Outra Pendencia<br />Situação: Informe pendencia comercial, financeira, treinamento ou outra qualquer</label>
           <textarea class="input" name="situacao"></textarea>
         </div>
-      </div>
+      </details>
       </div>
       <div id="tabContentSolucao" data-tab-content="solucao" style="display:none;">
         <div class="card" style="margin-top:8px;">
@@ -569,13 +576,29 @@ export async function render() {
       const showImpl = tipo === 'Implantação';
       const showAtual = tipo === 'Atualizacao';
       const showOutro = tipo === 'Outro';
-      if (grpPS) grpPS.style.display = showPS ? '' : 'none';
-      if (grpImpl) grpImpl.style.display = showImpl ? '' : 'none';
-      if (grpAtual) grpAtual.style.display = showAtual ? '' : 'none';
-      if (grpOutro) grpOutro.style.display = showOutro ? '' : 'none';
+      if (grpPS) { grpPS.style.display = showPS ? '' : 'none'; grpPS.open = showPS; }
+      if (grpImpl) { grpImpl.style.display = showImpl ? '' : 'none'; grpImpl.open = showImpl; }
+      if (grpAtual) { grpAtual.style.display = showAtual ? '' : 'none'; grpAtual.open = showAtual; }
+      if (grpOutro) { grpOutro.style.display = showOutro ? '' : 'none'; grpOutro.open = showOutro; }
     };
     updateGroupsByType();
     if (tipoSel) tipoSel.addEventListener('change', updateGroupsByType);
+    const typeTabs = modal.querySelectorAll('.type-tab');
+    const updateTypeTabs = () => {
+      const cur = (tipoSel?.value || '').trim();
+      typeTabs.forEach(btn => {
+        const isActive = btn.getAttribute('data-type') === cur;
+        btn.classList.toggle('primary', isActive);
+        btn.classList.toggle('secondary', !isActive);
+      });
+    };
+    updateTypeTabs();
+    typeTabs.forEach(btn => btn.addEventListener('click', () => {
+      const t = btn.getAttribute('data-type');
+      if (tipoSel) tipoSel.value = t;
+      updateGroupsByType();
+      updateTypeTabs();
+    }));
     // Salvar
     const form = modal.querySelector('#pForm');
     form.addEventListener('submit', async (e) => {
@@ -754,13 +777,29 @@ export async function render() {
             const showImpl = tipo === 'Implantação';
             const showAtual = tipo === 'Atualizacao';
             const showOutro = tipo === 'Outro';
-            if (grpPS) grpPS.style.display = showPS ? '' : 'none';
-            if (grpImpl) grpImpl.style.display = showImpl ? '' : 'none';
-            if (grpAtual) grpAtual.style.display = showAtual ? '' : 'none';
-            if (grpOutro) grpOutro.style.display = showOutro ? '' : 'none';
+            if (grpPS) { grpPS.style.display = showPS ? '' : 'none'; grpPS.open = showPS; }
+            if (grpImpl) { grpImpl.style.display = showImpl ? '' : 'none'; grpImpl.open = showImpl; }
+            if (grpAtual) { grpAtual.style.display = showAtual ? '' : 'none'; grpAtual.open = showAtual; }
+            if (grpOutro) { grpOutro.style.display = showOutro ? '' : 'none'; grpOutro.open = showOutro; }
           };
           updateGroupsByType();
           if (tipoSel) tipoSel.addEventListener('change', updateGroupsByType);
+          const typeTabs = modal.querySelectorAll('.type-tab');
+          const updateTypeTabs = () => {
+            const cur = (tipoSel?.value || '').trim();
+            typeTabs.forEach(btn => {
+              const isActive = btn.getAttribute('data-type') === cur;
+              btn.classList.toggle('primary', isActive);
+              btn.classList.toggle('secondary', !isActive);
+            });
+          };
+          updateTypeTabs();
+          typeTabs.forEach(btn => btn.addEventListener('click', () => {
+            const t = btn.getAttribute('data-type');
+            if (tipoSel) tipoSel.value = t;
+            updateGroupsByType();
+            updateTypeTabs();
+          }));
           // Salvar (update)
           const form = modal.querySelector('#pForm');
           const msgEl = modal.querySelector('#pFormMsg');

@@ -84,6 +84,8 @@ export function openModal(innerHtml) {
   modal.className = 'card';
   modal.style.maxWidth = '900px';
   modal.style.width = '96%';
+  modal.style.maxHeight = '90vh';
+  modal.style.overflow = 'auto';
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
   modal.innerHTML = innerHtml;
