@@ -7,6 +7,7 @@ const cfg = {
   SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
   TRELLO_KEY: process.env.TRELLO_KEY || '',
   TRELLO_TOKEN: process.env.TRELLO_TOKEN || '',
+  WHATSAPP_API_TOKEN: process.env.WHATSAPP_API_TOKEN || '',
 };
 
 const content = `window.__CONFIG__ = ${JSON.stringify(cfg, null, 2)};\n`;

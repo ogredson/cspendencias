@@ -958,10 +958,12 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const ok = await confirmDialog(`Enviar notificação para ${phone}?`);
     if (!ok) return;
     try {
-      const resp = await fetch('/proxy/whatsapp/send-text', {
+      const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      const url = isLocal ? '/proxy/whatsapp/send-text' : '/api/whatsapp/send-text';
+      const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: WHATSAPP_API_TOKEN, phone, message })
+        body: JSON.stringify(isLocal ? { token: WHATSAPP_API_TOKEN, phone, message } : { phone, message })
       });
       if (!resp.ok) { const txt = await resp.text(); alert('Falha ao enviar: ' + txt); return; }
       alert('Mensagem enviada para o técnico.');
