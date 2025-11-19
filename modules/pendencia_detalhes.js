@@ -269,9 +269,9 @@ const fmt = (dt) => formatDateTimeBr(dt);
 
           <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
             ${pend?.link_trello ? `<a class="btn" href="${pend.link_trello}" target="_blank" rel="noopener">Abrir no Trello</a>` : ''}
-            <button class="btn trello" id="btnTrello">Gerar Card Trello</button>
+            <button type="button" class="btn trello" id="btnTrello">Gerar Card Trello</button>
             ${pend?.link_trello ? `<button class="btn" id="btnVerCard">Ver Card Trello</button>` : ''}
-            <button class="btn warning" id="btnNotifyTech">Notificar Responsável</button>
+            <button type="button" class="btn warning" id="btnNotifyTech">Notificar Responsável</button>
           </div>
         </div>
 
@@ -282,8 +282,8 @@ const fmt = (dt) => formatDateTimeBr(dt);
             <label>Técnico de Triagem</label>
             <div style="display:flex; gap:8px; align-items:center;">
               <select id="triagemSel" class="input" style="flex:1"><option value="">Selecione...</option>${triagemSel}</select>
-              <button class="btn warning" id="btnDesignar">Designar para triagem</button>
-              <button class="btn warning" id="btnNotifyTriagem">Notificar Técnico</button>
+              <button type="button" class="btn warning" id="btnDesignar">Designar para triagem</button>
+              <button type="button" class="btn warning" id="btnNotifyTriagem">Notificar Técnico</button>
             </div>
           </div>
           <div class="toolbar" style="margin-top:8px">
