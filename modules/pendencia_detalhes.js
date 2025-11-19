@@ -918,16 +918,20 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const prevLabel = (pend?.status || '') === 'Resolvido' ? 'Data Conclusão' : 'Previsão de Conclusão';
     const prevValue = pend?.previsao_conclusao ? formatDateBr(pend?.previsao_conclusao) : 'a definir';
     const titulo = String(pend?.descricao || '').trim();
-    const header = `*Ordem de Serviço — ${pid}${titulo ? ` • ${titulo}` : ''}*`;
+    const prLower = String(prio || '').toLowerCase();
+    const alertEmoji = prLower === 'critica' ? '🚨 ' : (prLower === 'alta' ? '⚠️ ' : '');
+    const statusLower = String(pend?.status || '').toLowerCase();
+    const tecIcon = statusLower === 'aguardando aceite' ? '🔔 ' : '';
+    const header = `*${alertEmoji}Pendencia — ${pid}${titulo ? ` • ${titulo}` : ''}*`;
     const info = [
       `*Cliente:* ${clienteNome}`,
       `*Módulo:* ${moduloNome}`,
       `*Tipo:* ${tipo}`,
-      `*Técnico:* ${tecnico}`,
-      `*Prioridade:* ${prio}`,
+      `*Técnico:* ${tecIcon}${tecnico}`,
+      `*Prioridade:* ${alertEmoji}${prio}`,
       `*Data Abertura:* ${dataAbertura}`,
       `*${prevLabel}:* ${prevValue}`,
-      `*Título:* ${titulo}`
+      `*Status: ${pend?.status || '—'}*`
     ].join('\n');
     let extraFmt = '';
     if (tipo === 'Programação' || tipo === 'Suporte') {
