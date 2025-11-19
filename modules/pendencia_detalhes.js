@@ -932,7 +932,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
       `*Prioridade:* ${alertEmoji}${prio}`,
       `*Data Abertura:* ${dataAbertura}`,
       `*${prevLabel}:* ${prevValue}`,
-      `*Status: ${pend?.status || '—'}*`
+      `*Status: ${pend?.status || '—'}${statusDetail ? ' — ' + statusDetail : ''}*`
     ].join('\n');
     let extraFmt = '';
     if (tipo === 'Programação' || tipo === 'Suporte') {
@@ -1007,7 +1007,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
       `*Prioridade:* ${alertEmoji}${prio}`,
       `*Data Abertura:* ${dataAbertura}`,
       `*${prevLabel}:* ${prevValue}`,
-      `*Status: ${pend?.status || '—'}*`
+      `*Status: ${pend?.status || '—'}${statusDetail ? ' — ' + statusDetail : ''}*`
     ].join('\n');
     let extraFmt = '';
     if (tipo === 'Programação' || tipo === 'Suporte') {
