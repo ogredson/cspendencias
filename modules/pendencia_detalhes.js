@@ -271,7 +271,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
             ${pend?.link_trello ? `<a class="btn" href="${pend.link_trello}" target="_blank" rel="noopener">Abrir no Trello</a>` : ''}
             <button class="btn trello" id="btnTrello">Gerar Card Trello</button>
             ${pend?.link_trello ? `<button class="btn" id="btnVerCard">Ver Card Trello</button>` : ''}
-            <button class="btn warning" id="btnNotifyTech">Notificar Técnico</button>
+            <button class="btn warning" id="btnNotifyTech">Notificar Responsável</button>
           </div>
         </div>
 
@@ -283,6 +283,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
             <div style="display:flex; gap:8px; align-items:center;">
               <select id="triagemSel" class="input" style="flex:1"><option value="">Selecione...</option>${triagemSel}</select>
               <button class="btn warning" id="btnDesignar">Designar para triagem</button>
+              <button class="btn warning" id="btnNotifyTriagem">Notificar Técnico</button>
             </div>
           </div>
           <div class="toolbar" style="margin-top:8px">
@@ -955,6 +956,81 @@ const fmt = (dt) => formatDateTimeBr(dt);
         `*Impacto:* ${pend?.informacoes_adicionais ?? '—'}`,
         `*Requisitos específicos:* ${pend?.recursos_necessarios ?? '—'}`
       ].join('\\n');
+    } else if (tipo === 'Outro') {
+      extraFmt = `*Situação:* ${pend?.situacao ?? '—'}`;
+    }
+    const message = [header, '', info, '', extraFmt].filter(Boolean).join('\n');
+    const ok = await confirmDialog(`Enviar notificação para ${phone}?`);
+    if (!ok) return;
+    try {
+      const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      const url = isLocal ? '/proxy/whatsapp/send-text' : '/api/whatsapp/send-text';
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(isLocal ? { token: WHATSAPP_API_TOKEN, phone, message } : { phone, message })
+      });
+      if (!resp.ok) { const txt = await resp.text(); alert('Falha ao enviar: ' + txt); return; }
+      alert('Mensagem enviada para o técnico.');
+    } catch (e) { alert('Erro ao enviar: ' + (e?.message || e)); }
+  });
+  v.addEventListener('click', async (e) => {
+    const target = e.target.closest('#btnNotifyTriagem');
+    if (!target) return;
+    if (!WHATSAPP_API_TOKEN) { alert('Configure WHATSAPP_API_TOKEN em config.local.js'); return; }
+    const clienteNome = (clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome || pend?.cliente_id || '—';
+    const moduloNome = (modulos || []).find(m => m.id === pend?.modulo_id)?.nome || pend?.modulo_id || '—';
+    const tipo = pend?.tipo || '—';
+    const prio = pend?.prioridade || '—';
+    const triSel = document.getElementById('triagemSel');
+    const tecnico = triSel && triSel.value ? triSel.value : '';
+    if (!tecnico) { alert('Selecione o Técnico de Triagem para notificar.'); return; }
+    const usuarioTec = (usuarios || []).find(u => String(u.nome || '').toLowerCase() === String(tecnico).toLowerCase());
+    const phoneRaw = usuarioTec?.fone_celular || '';
+    const phone = normalizePhone(phoneRaw);
+    if (!phone) { alert('Telefone do técnico de triagem não encontrado.'); return; }
+    const pid = (() => { const s = String(id ?? ''); const raw = s.replace(/^ID-/, ''); return 'ID-' + String(raw).padStart(5, '0'); })();
+    const dataAbertura = formatDateBr(pend?.data_relato);
+    const prevLabel = (pend?.status || '') === 'Resolvido' ? 'Data Conclusão' : 'Previsão de Conclusão';
+    const prevValue = pend?.previsao_conclusao ? formatDateBr(pend?.previsao_conclusao) : 'a definir';
+    const titulo = String(pend?.descricao || '').trim();
+    const prLower = String(prio || '').toLowerCase();
+    const alertEmoji = prLower === 'critica' ? '🚨 ' : (prLower === 'alta' ? '⚠️ ' : '');
+    const statusLower = String(pend?.status || '').toLowerCase();
+    const tecIcon = statusLower === 'aguardando aceite' ? '🔔 ' : '';
+    const header = `*${alertEmoji}Pendencia — ${pid}${titulo ? ` • ${titulo}` : ''}*`;
+    const info = [
+      `*Cliente:* ${clienteNome}`,
+      `*Módulo:* ${moduloNome}`,
+      `*Tipo:* ${tipo}`,
+      `*Técnico:* ${tecIcon}${tecnico}`,
+      `*Prioridade:* ${alertEmoji}${prio}`,
+      `*Data Abertura:* ${dataAbertura}`,
+      `*${prevLabel}:* ${prevValue}`,
+      `*Status: ${pend?.status || '—'}*`
+    ].join('\n');
+    let extraFmt = '';
+    if (tipo === 'Programação' || tipo === 'Suporte') {
+      extraFmt = [
+        `*Situação:* ${pend?.situacao ?? '—'}`,
+        `*Etapas:* ${pend?.etapas_reproducao ?? '—'}`,
+        `*Frequência:* ${pend?.frequencia ?? '—'}`,
+        `*Informações:* ${pend?.informacoes_adicionais ?? '—'}`
+      ].join('\n');
+    } else if (tipo === 'Implantação') {
+      extraFmt = [
+        `*Escopo:* ${pend?.escopo ?? '—'}`,
+        `*Objetivo:* ${pend?.objetivo ?? '—'}`,
+        `*Recursos:* ${pend?.recursos_necessarios ?? '—'}`,
+        `*Informações:* ${pend?.informacoes_adicionais ?? '—'}`
+      ].join('\n');
+    } else if (tipo === 'Atualizacao') {
+      extraFmt = [
+        `*Escopo:* ${pend?.escopo ?? '—'}`,
+        `*Motivação:* ${pend?.objetivo ?? '—'}`,
+        `*Impacto:* ${pend?.informacoes_adicionais ?? '—'}`,
+        `*Requisitos específicos:* ${pend?.recursos_necessarios ?? '—'}`
+      ].join('\n');
     } else if (tipo === 'Outro') {
       extraFmt = `*Situação:* ${pend?.situacao ?? '—'}`;
     }
