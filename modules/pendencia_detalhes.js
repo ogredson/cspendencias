@@ -928,7 +928,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
       `*Data Abertura:* ${dataAbertura}`,
       `*${prevLabel}:* ${prevValue}`,
       `*Título:* ${titulo}`
-    ].join('\\n');
+    ].join('\n');
     let extraFmt = '';
     if (tipo === 'Programação' || tipo === 'Suporte') {
       extraFmt = [
@@ -936,14 +936,14 @@ const fmt = (dt) => formatDateTimeBr(dt);
         `*Etapas:* ${pend?.etapas_reproducao ?? '—'}`,
         `*Frequência:* ${pend?.frequencia ?? '—'}`,
         `*Informações:* ${pend?.informacoes_adicionais ?? '—'}`
-      ].join('\\n');
+      ].join('\n');
     } else if (tipo === 'Implantação') {
       extraFmt = [
         `*Escopo:* ${pend?.escopo ?? '—'}`,
         `*Objetivo:* ${pend?.objetivo ?? '—'}`,
         `*Recursos:* ${pend?.recursos_necessarios ?? '—'}`,
         `*Informações:* ${pend?.informacoes_adicionais ?? '—'}`
-      ].join('\\n');
+      ].join('\n');
     } else if (tipo === 'Atualizacao') {
       extraFmt = [
         `*Escopo:* ${pend?.escopo ?? '—'}`,
@@ -954,7 +954,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
     } else if (tipo === 'Outro') {
       extraFmt = `*Situação:* ${pend?.situacao ?? '—'}`;
     }
-    const message = [header, info, extraFmt].filter(Boolean).join('\\n');
+    const message = [header, '', info, '', extraFmt].filter(Boolean).join('\n');
     const ok = await confirmDialog(`Enviar notificação para ${phone}?`);
     if (!ok) return;
     try {
