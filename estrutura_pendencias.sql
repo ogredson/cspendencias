@@ -324,3 +324,4 @@ CREATE TRIGGER trigger_historico_triagem
   FOR EACH ROW EXECUTE FUNCTION registrar_historico_triagem();
   
 ALTER TABLE public.usuarios ADD COLUMN senha VARCHAR(5);
+ALTER TABLE public.usuarios ADD COLUMN fone_celular text null;

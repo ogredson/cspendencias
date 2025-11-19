@@ -8,3 +8,4 @@ export const SUPABASE_URL = localCfg.SUPABASE_URL ?? "";
 export const SUPABASE_ANON_KEY = localCfg.SUPABASE_ANON_KEY ?? "";
 export const TRELLO_KEY = localCfg.TRELLO_KEY ?? "";
 export const TRELLO_TOKEN = localCfg.TRELLO_TOKEN ?? "";
+export const WHATSAPP_API_TOKEN = localCfg.WHATSAPP_API_TOKEN ?? "";

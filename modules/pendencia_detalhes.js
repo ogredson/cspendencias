@@ -1,6 +1,6 @@
 // topo: imports
 import { viewMount, confirmDialog, openModal } from './ui.js';
-import { TRELLO_KEY, TRELLO_TOKEN } from '../config.js';
+import { TRELLO_KEY, TRELLO_TOKEN, WHATSAPP_API_TOKEN } from '../config.js';
 import { storage } from '../utils/storage.js';
 import { getSupabase } from '../supabaseClient.js';
 import { session } from '../utils/session.js';
@@ -47,14 +47,14 @@ export async function render() {
   const id = getIdFromHash();
   if (!id) { v.innerHTML = `<div class="card"><div class="hint">ID não informado.</div></div>`; return; }
   const supabase = getSupabase();
-  const [{ data: pend }, { data: tri }, { data: hist }, { data: usuarios }, { data: clientes }, { data: modulos }] = await Promise.all([
-    supabase.from('pendencias').select('*').eq('id', id).maybeSingle(),
-    supabase.from('pendencia_triagem').select('*').eq('pendencia_id', id).maybeSingle(),
-    supabase.from('pendencia_historicos').select('*').eq('pendencia_id', id).order('created_at', { ascending: false }),
-    supabase.from('usuarios').select('nome').eq('ativo', true).order('nome'),
-    supabase.from('clientes').select('id_cliente, nome'),
-    supabase.from('modulos').select('id, nome').order('id')
-  ]);
+    const [{ data: pend }, { data: tri }, { data: hist }, { data: usuarios }, { data: clientes }, { data: modulos }] = await Promise.all([
+      supabase.from('pendencias').select('*').eq('id', id).maybeSingle(),
+      supabase.from('pendencia_triagem').select('*').eq('pendencia_id', id).maybeSingle(),
+      supabase.from('pendencia_historicos').select('*').eq('pendencia_id', id).order('created_at', { ascending: false }),
+      supabase.from('usuarios').select('nome, fone_celular').eq('ativo', true).order('nome'),
+      supabase.from('clientes').select('id_cliente, nome'),
+      supabase.from('modulos').select('id, nome').order('id')
+    ]);
 
   const triagemSel = (usuarios || []).map(u => `<option value="${u.nome}">${u.nome}</option>`).join('');
 
@@ -270,7 +270,8 @@ const fmt = (dt) => formatDateTimeBr(dt);
           <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
             ${pend?.link_trello ? `<a class="btn" href="${pend.link_trello}" target="_blank" rel="noopener">Abrir no Trello</a>` : ''}
             <button class="btn trello" id="btnTrello">Gerar Card Trello</button>
-            <button class="btn" id="btnVerCard">Ver Card Trello</button>
+            ${pend?.link_trello ? `<button class="btn" id="btnVerCard">Ver Card Trello</button>` : ''}
+            <button class="btn warning" id="btnNotifyTech">Notificar Técnico</button>
           </div>
         </div>
 
@@ -892,4 +893,78 @@ const fmt = (dt) => formatDateTimeBr(dt);
       .map(k => `<div style="display:flex; align-items:center; gap:6px"><span style="display:inline-block; width:12px; height:12px; background:${segColors[k]}; border-radius:2px"></span><span>${k}: ${humanize(durations[k])}</span></div>`)
       .join('');
   }
+  const normalizePhone = (raw) => {
+    const d = String(raw || '').replace(/\D/g, '');
+    if (!d) return '';
+    if (d.startsWith('55')) return d;
+    if (d.length >= 10 && d.length <= 11) return '55' + d;
+    return d;
+  };
+  v.addEventListener('click', async (e) => {
+    const target = e.target.closest('#btnNotifyTech');
+    if (!target) return;
+    if (!WHATSAPP_API_TOKEN) { alert('Configure WHATSAPP_API_TOKEN em config.local.js'); return; }
+    const clienteNome = (clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome || pend?.cliente_id || '—';
+    const moduloNome = (modulos || []).find(m => m.id === pend?.modulo_id)?.nome || pend?.modulo_id || '—';
+    const tipo = pend?.tipo || '—';
+    const prio = pend?.prioridade || '—';
+    const tecnico = pend?.tecnico || tri?.tecnico_relato || '—';
+    const usuarioTec = (usuarios || []).find(u => String(u.nome || '').toLowerCase() === String(tecnico).toLowerCase());
+    const phoneRaw = usuarioTec?.fone_celular || '';
+    const phone = normalizePhone(phoneRaw);
+    if (!phone) { alert('Telefone do técnico não encontrado.'); return; }
+    const pid = (() => { const s = String(id ?? ''); const raw = s.replace(/^ID-/, ''); return 'ID-' + String(raw).padStart(5, '0'); })();
+    const dataAbertura = formatDateBr(pend?.data_relato);
+    const prevLabel = (pend?.status || '') === 'Resolvido' ? 'Data Conclusão' : 'Previsão de Conclusão';
+    const prevValue = pend?.previsao_conclusao ? formatDateBr(pend?.previsao_conclusao) : 'a definir';
+    const titulo = String(pend?.descricao || '').trim();
+    const header = `*Ordem de Serviço — ${pid}${titulo ? ` • ${titulo}` : ''}*`;
+    const info = [
+      `*Cliente:* ${clienteNome}`,
+      `*Módulo:* ${moduloNome}`,
+      `*Tipo:* ${tipo}`,
+      `*Técnico:* ${tecnico}`,
+      `*Prioridade:* ${prio}`,
+      `*Data Abertura:* ${dataAbertura}`,
+      `*${prevLabel}:* ${prevValue}`,
+      `*Título:* ${titulo}`
+    ].join('\\n');
+    let extraFmt = '';
+    if (tipo === 'Programação' || tipo === 'Suporte') {
+      extraFmt = [
+        `*Situação:* ${pend?.situacao ?? '—'}`,
+        `*Etapas:* ${pend?.etapas_reproducao ?? '—'}`,
+        `*Frequência:* ${pend?.frequencia ?? '—'}`,
+        `*Informações:* ${pend?.informacoes_adicionais ?? '—'}`
+      ].join('\\n');
+    } else if (tipo === 'Implantação') {
+      extraFmt = [
+        `*Escopo:* ${pend?.escopo ?? '—'}`,
+        `*Objetivo:* ${pend?.objetivo ?? '—'}`,
+        `*Recursos:* ${pend?.recursos_necessarios ?? '—'}`,
+        `*Informações:* ${pend?.informacoes_adicionais ?? '—'}`
+      ].join('\\n');
+    } else if (tipo === 'Atualizacao') {
+      extraFmt = [
+        `*Escopo:* ${pend?.escopo ?? '—'}`,
+        `*Motivação:* ${pend?.objetivo ?? '—'}`,
+        `*Impacto:* ${pend?.informacoes_adicionais ?? '—'}`,
+        `*Requisitos específicos:* ${pend?.recursos_necessarios ?? '—'}`
+      ].join('\\n');
+    } else if (tipo === 'Outro') {
+      extraFmt = `*Situação:* ${pend?.situacao ?? '—'}`;
+    }
+    const message = [header, info, extraFmt].filter(Boolean).join('\\n');
+    const ok = await confirmDialog(`Enviar notificação para ${phone}?`);
+    if (!ok) return;
+    try {
+      const resp = await fetch('/proxy/whatsapp/send-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: WHATSAPP_API_TOKEN, phone, message })
+      });
+      if (!resp.ok) { const txt = await resp.text(); alert('Falha ao enviar: ' + txt); return; }
+      alert('Mensagem enviada para o técnico.');
+    } catch (e) { alert('Erro ao enviar: ' + (e?.message || e)); }
+  });
 }
