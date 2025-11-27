@@ -170,11 +170,18 @@ textarea { min-height: 80px; }
 /* Tabs for forms */
 .tabs { border-bottom: 1px solid #1f2937; }
 :root[data-theme="light"] .tabs { border-bottom-color: #e5e7eb; }
-.tab { appearance: none; background: transparent; border: none; color: var(--text); padding: 8px 12px; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 600; opacity: 0.8; }
+.tab { appearance: none; border: 1px solid transparent; color: var(--text); padding: 8px 12px; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 600; opacity: 0.9; }
 .tab:hover { opacity: 1; }
-.tab.active { background: #0b1220; border: 1px solid #1f2937; border-bottom-color: transparent; opacity: 1; }
-:root[data-theme="light"] .tab.active { background: #ffffff; border-color: #e5e7eb; }
-.tab[data-tab="solucao"].active { color: #10B981; }
+.tab[data-tab="dados"] { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.25); }
+.tab[data-tab="solucao"] { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.25); }
+.tab[data-tab="anexos"] { background: rgba(167,139,250,0.14); border-color: rgba(167,139,250,0.25); }
+.tab.active { opacity: 1; border-bottom-color: transparent; box-shadow: 0 2px 0 rgba(0,0,0,0); }
+.tab[data-tab="dados"].active { background: var(--color-primary); border-color: var(--color-primary); color: #ffffff; }
+.tab[data-tab="solucao"].active { background: var(--color-success); border-color: var(--color-success); color: #ffffff; }
+.tab[data-tab="anexos"].active { background: #A78BFA; border-color: #A78BFA; color: #1f1633; }
+:root[data-theme="light"] .tab[data-tab="dados"].active { background: var(--color-primary); border-color: var(--color-primary); color: #ffffff; }
+:root[data-theme="light"] .tab[data-tab="solucao"].active { background: var(--color-success); border-color: var(--color-success); color: #ffffff; }
+:root[data-theme="light"] .tab[data-tab="anexos"].active { background: #8b5cf6; border-color: #8b5cf6; color: #ffffff; }
 
 /* Small accent for detail title */
 .title-accent { color: var(--text); border-left: 4px solid var(--color-primary); padding-left: 8px; font-weight: 700; }
