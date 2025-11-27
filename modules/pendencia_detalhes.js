@@ -47,13 +47,14 @@ export async function render() {
   const id = getIdFromHash();
   if (!id) { v.innerHTML = `<div class="card"><div class="hint">ID não informado.</div></div>`; return; }
   const supabase = getSupabase();
-    const [{ data: pend }, { data: tri }, { data: hist }, { data: usuarios }, { data: clientes }, { data: modulos }] = await Promise.all([
+    const [{ data: pend }, { data: tri }, { data: hist }, { data: usuarios }, { data: clientes }, { data: modulos }, { data: anexos }] = await Promise.all([
       supabase.from('pendencias').select('*').eq('id', id).maybeSingle(),
       supabase.from('pendencia_triagem').select('*').eq('pendencia_id', id).maybeSingle(),
       supabase.from('pendencia_historicos').select('*').eq('pendencia_id', id).order('created_at', { ascending: false }),
       supabase.from('usuarios').select('nome, fone_celular').eq('ativo', true).order('nome'),
       supabase.from('clientes').select('id_cliente, nome'),
-      supabase.from('modulos').select('id, nome').order('id')
+      supabase.from('modulos').select('id, nome').order('id'),
+      supabase.from('pendencia_anexos').select('*').eq('pendencia_id', id).order('data_anexo', { ascending: false })
     ]);
 
   const triagemSel = (usuarios || []).map(u => `<option value="${u.nome}">${u.nome}</option>`).join('');
@@ -67,6 +68,20 @@ const fmt = (dt) => formatDateTimeBr(dt);
   const histAceito = findByAction(hist, 'aceita para resolução');
   const histRejeitada = findByAction(hist, 'rejeitad');
   const histResolvida = findByAction(hist, 'resolvid');
+  const hasAnexos = (anexos || []).length > 0;
+  const anexosRows = (anexos || []).map(a => {
+    const dt = formatDateTimeBr(a.data_anexo);
+    const url = a?.url_anexo ? `<a href="${sanitizeText(a.url_anexo)}" target="_blank" rel="noopener">${sanitizeText(a.url_anexo)}</a>` : '';
+    return `
+      <tr>
+        <td>${sanitizeText(dt || '')}</td>
+        <td>${sanitizeText(a.categoria || '')}</td>
+        <td>${sanitizeText(a.nome_arquivo || '')}</td>
+        <td>${sanitizeText(a.tipo_arquivo || '')}</td>
+        <td class="pre">${sanitizeText(a.descricao || '')}</td>
+        <td>${url}</td>
+      </tr>`;
+  }).join('');
 
   // Mapeia cores por status para a barra superior
   const getStatusColor = (s) => {
@@ -249,6 +264,10 @@ const fmt = (dt) => formatDateTimeBr(dt);
                 <td>${(clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome ?? pend?.cliente_id ?? ''}</td>
               </tr>
               <tr>
+                <th>Módulo/Release:</th>
+                <td>${(() => { const nome = (modulos || []).find(m => m.id === pend?.modulo_id)?.nome ?? pend?.modulo_id ?? ''; return String(nome) + (pend?.release_versao ? '/' + pend.release_versao : ''); })()}</td>
+              </tr>
+              <tr>
                 <th>Tipo:</th>
                 <td>${pend?.tipo ?? '—'}</td>
               </tr>
@@ -294,8 +313,28 @@ const fmt = (dt) => formatDateTimeBr(dt);
             <button class="btn danger" id="btnRejeitar">Rejeitar</button>
           </div>
         </div>
-        <div class="card">
-          <div class="section-head neutral">Histórico</div>
+        <details class="card" id="anexosCard" style="margin-top:8px"${hasAnexos ? ' open' : ''}>
+          <summary class="section-head info">Anexos</summary>
+          <div style="padding:8px;">
+            ${hasAnexos ? `
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Categoria</th>
+                  <th>Nome</th>
+                  <th>Tipo</th>
+                  <th>Descrição</th>
+                  <th>URL</th>
+                </tr>
+              </thead>
+              <tbody>${anexosRows}</tbody>
+            </table>
+            ` : '<div class="hint">Nenhum anexo cadastrado.</div>'}
+          </div>
+        </details>
+        <details class="card" id="histCard" style="margin-top:8px">
+          <summary class="section-head neutral">Histórico</summary>
           <div class="toolbar" style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
             <input id="histFilter" class="input" placeholder="Filtrar por texto..." style="flex:1; min-width:240px" />
             <button class="btn" id="histClear">Limpar filtro</button>
@@ -326,7 +365,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
             </thead>
             <tbody id="histTbody"></tbody>
           </table>
-        </div>
+        </details>
       </div>
       <div class="col-6">
         ${detalhesHtml}
@@ -387,12 +426,13 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const persistTTL = 90 * 24 * 60 * 60 * 1000; // 90 dias
     const clienteNome = (clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome ?? pend?.cliente_id ?? '';
     const moduloNome = (modulos || []).find(m => m.id === pend?.modulo_id)?.nome ?? pend?.modulo_id ?? '';
+    const moduloPair = String(moduloNome) + (pend?.release_versao ? '/' + pend.release_versao : '');
     const cardTitle = `${formatPendId(pend?.id)}: ${pend?.descricao ?? ''}`.trim();
     const responsavelNome = pend?.tecnico || tri?.tecnico_responsavel || tri?.tecnico_relato || session.get()?.nome || '—';
     const buildDesc = () => {
       const linhas = [
         `Cliente: ${clienteNome}`,
-        `Módulo: ${moduloNome}`,
+        `Módulo/Release: ${moduloPair}`,
         `Tipo: ${pend?.tipo ?? '—'}`,
         `Prioridade: ${pend?.prioridade ?? '—'}`,
         `Status: ${pend?.status ?? '—'}`,
@@ -907,6 +947,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
     if (!WHATSAPP_API_TOKEN) { alert('Configure WHATSAPP_API_TOKEN em config.local.js'); return; }
     const clienteNome = (clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome || pend?.cliente_id || '—';
     const moduloNome = (modulos || []).find(m => m.id === pend?.modulo_id)?.nome || pend?.modulo_id || '—';
+    const moduloPair = String(moduloNome) + (pend?.release_versao ? '/' + pend.release_versao : '');
     const tipo = pend?.tipo || '—';
     const prio = pend?.prioridade || '—';
     const tecnico = pend?.tecnico || tri?.tecnico_relato || '—';
@@ -926,7 +967,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const header = `*${alertEmoji}Pendencia — ${pid}${titulo ? ` • ${titulo}` : ''}*`;
     const info = [
       `*Cliente:* ${clienteNome}`,
-      `*Módulo:* ${moduloNome}`,
+      `*Módulo/Release:* ${moduloPair}`,
       `*Tipo:* ${tipo}`,
       `*Técnico:* ${tecIcon}${tecnico}`,
       `*Prioridade:* ${alertEmoji}${prio}`,
@@ -980,6 +1021,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
     if (!WHATSAPP_API_TOKEN) { alert('Configure WHATSAPP_API_TOKEN em config.local.js'); return; }
     const clienteNome = (clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome || pend?.cliente_id || '—';
     const moduloNome = (modulos || []).find(m => m.id === pend?.modulo_id)?.nome || pend?.modulo_id || '—';
+    const moduloPair = String(moduloNome) + (pend?.release_versao ? '/' + pend.release_versao : '');
     const tipo = pend?.tipo || '—';
     const prio = pend?.prioridade || '—';
     const triSel = document.getElementById('triagemSel');
@@ -1001,7 +1043,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const header = `*${alertEmoji}Pendencia — ${pid}${titulo ? ` • ${titulo}` : ''}*`;
     const info = [
       `*Cliente:* ${clienteNome}`,
-      `*Módulo:* ${moduloNome}`,
+      `*Módulo/Release:* ${moduloPair}`,
       `*Tipo:* ${tipo}`,
       `*Técnico:* ${tecIcon}${tecnico}`,
       `*Prioridade:* ${alertEmoji}${prio}`,

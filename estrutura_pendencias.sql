@@ -26,6 +26,7 @@ create table public.pendencias (
   escopo text null,
   objetivo text null,
   recursos_necessarios text null,
+  release_versao text not null default ''::text,
   solucao_orientacao text null,
   constraint pendencias_pkey primary key (id),
   constraint pendencias_cliente_id_fkey foreign KEY (cliente_id) references clientes (id_cliente),
@@ -325,3 +326,48 @@ CREATE TRIGGER trigger_historico_triagem
   
 ALTER TABLE public.usuarios ADD COLUMN senha VARCHAR(5);
 ALTER TABLE public.usuarios ADD COLUMN fone_celular text null;
+
+create table public.pendencia_anexos (
+  id uuid not null default extensions.uuid_generate_v4 (),
+  pendencia_id character varying(20) not null,    
+  descricao text not null,
+  url_anexo text not null,
+  nome_arquivo text null,
+  tipo_arquivo text null,
+  data_anexo timestamp with time zone null default now(),
+  created_at timestamp with time zone null default now(),
+  created_by uuid null,
+  categoria text null,
+  ativo boolean null default true,
+  constraint pendencia_anexos_pkey primary key (id),
+  constraint pendencia_anexos_id_pendencia_id_fkey foreign KEY (pendencia_id) references pendencias (id) on delete CASCADE,
+  constraint pendencia_anexos_categoria_check check (
+    (
+      (
+        categoria = any (
+          array[
+            'banco_de_dados'::text,
+            'certificado_digital'::text,
+            'log_erros'::text,
+            'documentacao'::text,
+            'outro'::text
+          ]
+        )
+      )
+      or (categoria is null)
+    )
+  ),
+  constraint pendencia_anexos_url_check check ((url_anexo ~ '^https?://.*'::text))
+) TABLESPACE pg_default;
+
+create index IF not exists idx_pendencia_anexos_id_pendencia on public.pendencia_anexos using btree (pendencia_id) TABLESPACE pg_default;
+
+create index IF not exists idx_pendencia_anexos_data_anexo on public.pendencia_anexos using btree (data_anexo) TABLESPACE pg_default;
+
+create index IF not exists idx_pendencia_anexos_categoria on public.pendencia_anexos using btree (categoria) TABLESPACE pg_default;
+
+create index IF not exists idx_pendencia_anexos_ativo on public.pendencia_anexos using btree (ativo) TABLESPACE pg_default;
+
+/* Mais indices necessarios*/
+create index IF not exists idx_pendencia_historicos_id_pendencia on public.pendencia_historicos using btree (pendencia_id) TABLESPACE pg_default;
+create index IF not exists idx_pendencia_triagem_id_pendencia on public.pendencia_triagem using btree (pendencia_id) TABLESPACE pg_default;

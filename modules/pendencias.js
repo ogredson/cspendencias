@@ -27,12 +27,13 @@ function rowHtml(p) {
   const clienteNome = clienteMap[p.cliente_id] ?? p.cliente_id ?? '';
   const titulo = String(p.descricao ?? '');
   const tituloAttr = titulo.replace(/"/g, '&quot;');
+  const moduloPair = (moduloMap[p.modulo_id] ?? p.modulo_id ?? '') + (p.release_versao ? '/' + p.release_versao : '');
   return `
     <tr data-id="${p.id}">
       <td><input type="checkbox" class="sel" /></td>
       <td><a href="#/pendencia?id=${p.id}" class="link">${p.id}</a></td>
       <td title="${tituloAttr}">${clienteNome}</td>
-      <td>${moduloMap[p.modulo_id] ?? p.modulo_id ?? ''}</td>
+      <td>${moduloPair}</td>
       <td>${p.tipo}</td>
       <td class="col-tech-relato">${triRelato ?? ''}</td>
       <td class="col-tech-resp">${triResp ?? ''}</td>
@@ -113,17 +114,22 @@ function formHtml(clientes) {
       <div class="tabs" role="tablist" style="display:flex; gap:8px; margin-bottom:8px;">
         <button type="button" class="tab active" data-tab="dados">Dados</button>
         <button type="button" class="tab" data-tab="solucao">Solução/Orientação</button>
+        <button type="button" class="tab" data-tab="anexos">Anexos</button>
       </div>
       <div id="tabContentDados" data-tab-content="dados">
       <div class="row">
-        <div class="col-6 field">
+        <div class="col-4 field">
           <label>Cliente</label>
           <input name="cliente_nome" class="input" placeholder="Cliente (nome)" list="clientesFormList" />
           <datalist id="clientesFormList">${clienteOptions}</datalist>
         </div>
-        <div class="col-6 field">
+        <div class="col-4 field">
           <label>Módulo</label>
           <select class="input" name="modulo_id" required id="moduloSel"></select>
+        </div>
+        <div class="col-4 field">
+          <label>Versão/Relesase</label>
+          <input class="input" name="release_versao" required placeholder="Versão/Relesase" />
         </div>
       </div>
       <div class="row">
@@ -259,6 +265,66 @@ function formHtml(clientes) {
             <textarea class="input" name="solucao_orientacao" placeholder="Opcional"></textarea>
           </div>
           <div class="hint">Opcional — informações que ajudem a solucionar a pendência.</div>
+        </div>
+      </div>
+      <div id="tabContentAnexos" data-tab-content="anexos" style="display:none;">
+        <div class="card" style="margin-top:8px;">
+          <h4>📎 Anexos</h4>
+          <div class="row">
+            <div class="col-6 field">
+              <label>Descrição</label>
+              <input class="input" id="anexDesc" placeholder="Descrição do anexo" />
+            </div>
+            <div class="col-6 field">
+              <label>URL</label>
+              <input class="input" id="anexUrl" type="url" placeholder="https://..." />
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-4 field">
+              <label>Nome do arquivo</label>
+              <input class="input" id="anexNome" />
+            </div>
+            <div class="col-4 field">
+              <label>Tipo do arquivo</label>
+              <input class="input" id="anexTipo" />
+            </div>
+            <div class="col-4 field">
+              <label>Categoria</label>
+              <select class="input" id="anexCat">
+                <option value="">(sem categoria)</option>
+                <option value="banco_de_dados">Banco de dados</option>
+                <option value="certificado_digital">Certificado digital</option>
+                <option value="log_erros">Log de erros</option>
+                <option value="documentacao">Documentação</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+          </div>
+          <div class="toolbar" style="justify-content:flex-end; gap:8px;">
+            <button type="button" class="btn" id="anexClear">Limpar</button>
+            <button type="button" class="btn primary" id="anexAdd">Adicionar</button>
+          </div>
+          <div id="anexMsg" class="hint"></div>
+        </div>
+        <div class="card" style="margin-top:8px;">
+          <div class="section-head info">Anexos cadastrados</div>
+          <div style="height:240px; overflow:auto;">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Categoria</th>
+                  <th>Nome</th>
+                  <th>Tipo</th>
+                  <th>Descrição</th>
+                  <th>URL</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="anexosTbody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
       <div class="toolbar" style="justify-content:flex-end">
@@ -614,6 +680,7 @@ export async function render() {
       updateGroupsByType();
       updateTypeTabs();
     }));
+    const anexBinder = bindAnexosTab(modal, null);
     // Salvar
     const form = modal.querySelector('#pForm');
     form.addEventListener('submit', async (e) => {
@@ -634,6 +701,7 @@ export async function render() {
       const payload = {
         cliente_id: hitCliente.id_cliente,
         modulo_id: Number(fd.get('modulo_id')),
+        release_versao: fd.get('release_versao'),
         tipo: fd.get('tipo'),
         prioridade: fd.get('prioridade'),
         status: 'Triagem',
@@ -678,6 +746,7 @@ export async function render() {
           } else {
             await supabase.from('pendencia_triagem').insert({ pendencia_id: pendId, tecnico_relato: payload.tecnico });
           }
+          await anexBinder.persistAll(pendId);
         }
       } catch {}
       if (msgEl) msgEl.textContent = 'Pendência criada com sucesso.';
@@ -795,6 +864,7 @@ export async function render() {
           const setVal = (sel, val) => { if (sel && val != null) sel.value = String(val); };
           setVal(modal.querySelector('input[name="cliente_nome"]'), clienteMap[pend?.cliente_id] ?? '');
           setVal(modSel, pend?.modulo_id ?? '');
+          setVal(modal.querySelector('input[name="release_versao"]'), pend?.release_versao ?? '');
           setVal(modal.querySelector('select[name="tipo"]'), pend?.tipo ?? '');
           setVal(modal.querySelector('select[name="prioridade"]'), pend?.prioridade ?? '');
           setVal(tecSel, pend?.tecnico ?? '');
@@ -877,6 +947,7 @@ export async function render() {
             updateGroupsByType();
             updateTypeTabs();
           }));
+          const anexBinder = bindAnexosTab(modal, id);
           // Salvar (update)
           const form = modal.querySelector('#pForm');
           const msgEl = modal.querySelector('#pFormMsg');
@@ -892,6 +963,7 @@ export async function render() {
             const payload = {
               cliente_id: hitCliente.id_cliente,
               modulo_id: Number(fd.get('modulo_id')),
+              release_versao: fd.get('release_versao'),
               tipo: fd.get('tipo'),
               prioridade: fd.get('prioridade'),
               tecnico: fd.get('tecnico'),
@@ -992,6 +1064,7 @@ export async function render() {
           const setVal = (sel, val) => { if (sel && val != null) sel.value = String(val); };
           setVal(modal.querySelector('input[name="cliente_nome"]'), clienteMap[pend?.cliente_id] ?? '');
           setVal(modSel, pend?.modulo_id ?? '');
+          setVal(modal.querySelector('input[name="release_versao"]'), '');
           setVal(modal.querySelector('select[name="tipo"]'), pend?.tipo ?? '');
           setVal(modal.querySelector('select[name="prioridade"]'), pend?.prioridade ?? '');
           setVal(tecSel, pend?.tecnico ?? '');
@@ -1061,6 +1134,7 @@ export async function render() {
 
           // Salvar (create) reaproveitando lógica de "Novo"
           const form = modal.querySelector('#pForm');
+          const anexBinder = bindAnexosTab(modal, null);
           form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const fd = new FormData(form);
@@ -1079,6 +1153,7 @@ export async function render() {
             const payload = {
               cliente_id: hitCliente.id_cliente,
               modulo_id: Number(fd.get('modulo_id')),
+              release_versao: fd.get('release_versao'),
               tipo: fd.get('tipo'),
               prioridade: fd.get('prioridade'),
               status: 'Triagem',
@@ -1116,6 +1191,7 @@ export async function render() {
                 } else {
                   await supa.from('pendencia_triagem').insert({ pendencia_id: pendId, tecnico_relato: payload.tecnico });
                 }
+                await anexBinder.persistAll(pendId);
               }
             } catch {}
             if (msgEl) msgEl.textContent = 'Pendência criada com sucesso.';
@@ -1132,12 +1208,13 @@ export async function render() {
           };
           const pid = formatPendId(id);
           const clienteNome = clienteMap[pend?.cliente_id] ?? pend?.cliente_id ?? '—';
-          const moduloNome = moduloMap[pend?.modulo_id] ?? pend?.modulo_id ?? '—';
-          const tipo = pend?.tipo || '—';
-          const prio = pend?.prioridade || '—';
-          const tecnico = pend?.tecnico || '—';
-          const status = pend?.status || '—';
-          const dataAbertura = formatDateBr(pend?.data_relato);
+        const moduloNome = moduloMap[pend?.modulo_id] ?? pend?.modulo_id ?? '—';
+        const moduloPair = String(moduloNome) + (pend?.release_versao ? '/' + pend.release_versao : '');
+        const tipo = pend?.tipo || '—';
+        const prio = pend?.prioridade || '—';
+        const tecnico = pend?.tecnico || '—';
+        const status = pend?.status || '—';
+        const dataAbertura = formatDateBr(pend?.data_relato);
           const prevLabel = status === 'Resolvido' ? 'Data Conclusão' : 'Previsão de Conclusão';
           const prevValue = pend?.previsao_conclusao ? formatDateBr(pend?.previsao_conclusao) : 'a definir';
           const hojeStr = formatDateBr(new Date());
@@ -1178,7 +1255,7 @@ export async function render() {
                 <table class='details-table'>
                   <tbody>
                     <tr><th>Cliente</th><td>${sanitizeText(clienteNome)}</td></tr>
-                    <tr><th>Módulo</th><td>${sanitizeText(moduloNome)}</td></tr>
+                    <tr><th>Módulo/Release</th><td>${sanitizeText(moduloPair)}</td></tr>
                     <tr><th>Tipo</th><td>${sanitizeText(tipo)}</td></tr>
                     <tr><th>Técnico</th><td>${sanitizeText(tecnico)}</td></tr>
                     <tr><th>Prioridade</th><td><span class='prio ${prio}' aria-label='${prio}'>${prio}</span></td></tr>
@@ -1201,7 +1278,7 @@ export async function render() {
           const osText = [
             `Ordem de Serviço — ${pid}${titulo ? ` • ${titulo}` : ''}`,
             `Cliente: ${clienteNome}`,
-            `Módulo: ${moduloNome}`,
+            `Módulo/Release: ${moduloPair}`,
             `Tipo: ${tipo}`,
             `Técnico: ${tecnico}`,
             `Prioridade: ${prio}`,
@@ -1332,4 +1409,113 @@ export async function render() {
 
   bindGridEvents();
   apply();
+}
+
+function bindAnexosTab(modal, pendId) {
+  const supabase = getSupabase();
+  let anexos = [];
+  const descEl = modal.querySelector('#anexDesc');
+  const urlEl = modal.querySelector('#anexUrl');
+  const nomeEl = modal.querySelector('#anexNome');
+  const tipoEl = modal.querySelector('#anexTipo');
+  const catEl = modal.querySelector('#anexCat');
+  const addBtn = modal.querySelector('#anexAdd');
+  const clrBtn = modal.querySelector('#anexClear');
+  const msgEl = modal.querySelector('#anexMsg');
+  const tbody = modal.querySelector('#anexosTbody');
+
+  const clearForm = () => {
+    if (descEl) descEl.value = '';
+    if (urlEl) urlEl.value = '';
+    if (nomeEl) nomeEl.value = '';
+    if (tipoEl) tipoEl.value = '';
+    if (catEl) catEl.value = '';
+  };
+
+  const render = () => {
+    const rows = (anexos || []).map((a, i) => {
+      const ds = a.data_anexo ? new Date(a.data_anexo).toLocaleString('pt-BR') : '';
+      const url = a.url_anexo ? `<a href="${sanitizeText(a.url_anexo)}" target="_blank">${sanitizeText(a.url_anexo)}</a>` : '';
+      return `
+        <tr data-idx="${i}" data-id="${a.id || ''}">
+          <td>${sanitizeText(ds)}</td>
+          <td>${sanitizeText(a.categoria || '')}</td>
+          <td>${sanitizeText(a.nome_arquivo || '')}</td>
+          <td>${sanitizeText(a.tipo_arquivo || '')}</td>
+          <td>${sanitizeText(a.descricao || '')}</td>
+          <td>${url}</td>
+          <td>
+            <button class="btn warning" data-act="delAnexo">Excluir</button>
+          </td>
+        </tr>`;
+    }).join('');
+    if (tbody) tbody.innerHTML = rows;
+  };
+
+  const getPayloadFromForm = () => {
+    const categoria = (catEl?.value || '').trim();
+    return {
+      descricao: (descEl?.value || '').trim(),
+      url_anexo: (urlEl?.value || '').trim(),
+      nome_arquivo: ((nomeEl?.value || '').trim()) || null,
+      tipo_arquivo: ((tipoEl?.value || '').trim()) || null,
+      categoria: categoria || null
+    };
+  };
+
+  if (addBtn) addBtn.addEventListener('click', async () => {
+    const p = getPayloadFromForm();
+    if (!p.descricao || !p.url_anexo) { if (msgEl) msgEl.textContent = 'Informe descrição e URL'; return; }
+    if (pendId) {
+      const { data, error } = await supabase.from('pendencia_anexos').insert({ ...p, pendencia_id: pendId }).select('*').single();
+      if (error) { if (msgEl) msgEl.textContent = 'Erro ao adicionar: ' + error.message; return; }
+      anexos.unshift(data);
+    } else {
+      anexos.unshift({ ...p });
+    }
+    render();
+    clearForm();
+    if (msgEl) msgEl.textContent = '';
+  });
+
+  if (clrBtn) clrBtn.addEventListener('click', () => { clearForm(); });
+
+  if (tbody) tbody.addEventListener('click', async (e) => {
+    const act = e.target.getAttribute('data-act');
+    if (!act) return;
+    const tr = e.target.closest('tr');
+    const idx = Number(tr.getAttribute('data-idx'));
+    const id = tr.getAttribute('data-id');
+    if (act === 'delAnexo') {
+      if (id && pendId) {
+        const { error } = await supabase.from('pendencia_anexos').delete().eq('id', id);
+        if (error) { if (msgEl) msgEl.textContent = 'Erro ao excluir: ' + error.message; return; }
+      }
+      anexos.splice(idx, 1);
+      render();
+    }
+  });
+
+  const loadExisting = async () => {
+    if (!pendId) return;
+    const { data } = await supabase
+      .from('pendencia_anexos')
+      .select('*')
+      .eq('pendencia_id', pendId)
+      .order('data_anexo', { ascending: false });
+    anexos = data || [];
+    render();
+  };
+  loadExisting();
+
+  return {
+    getStaged: () => (anexos || []).filter(a => !a.id),
+    persistAll: async (pid) => {
+      if (!pid) return;
+      const staged = (anexos || []).filter(a => !a.id);
+      for (const s of staged) {
+        await supabase.from('pendencia_anexos').insert({ ...s, pendencia_id: pid }).select('*');
+      }
+    }
+  };
 }
