@@ -26,7 +26,7 @@ create table public.pendencias (
   escopo text null,
   objetivo text null,
   recursos_necessarios text null,
-  release_versao text not null default ''::text,
+  release_versao text null,
   solucao_orientacao text null,
   constraint pendencias_pkey primary key (id),
   constraint pendencias_cliente_id_fkey foreign KEY (cliente_id) references clientes (id_cliente),

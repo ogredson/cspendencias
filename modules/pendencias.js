@@ -129,7 +129,7 @@ function formHtml(clientes) {
         </div>
         <div class="col-4 field">
           <label>Versão/Relesase</label>
-          <input class="input" name="release_versao" required placeholder="Versão/Relesase" />
+          <input class="input" name="release_versao" placeholder="Versão/Relesase" />
         </div>
       </div>
       <div class="row">
@@ -647,6 +647,7 @@ export async function render() {
     if (closeBtn && modal.closeModal) closeBtn.addEventListener('click', () => modal.closeModal());
     // Mostrar/ocultar grupos conforme tipo
     const tipoSel = modal.querySelector('select[name="tipo"]');
+    const relInput = modal.querySelector('input[name="release_versao"]');
     const grpPS = modal.querySelector('#grpPS');
     const grpImpl = modal.querySelector('#grpImpl');
     const grpAtual = modal.querySelector('#grpAtual');
@@ -663,7 +664,16 @@ export async function render() {
       if (grpOutro) { grpOutro.style.display = showOutro ? '' : 'none'; grpOutro.open = showOutro; }
     };
     updateGroupsByType();
-    if (tipoSel) tipoSel.addEventListener('change', () => { updateGroupsByType(); updateTypeTabs(); });
+    const enforceReleaseRequired = () => {
+      const t = (tipoSel?.value || '').trim();
+      if (relInput) {
+        relInput.required = (t === 'Programação');
+        const lbl = relInput.closest('.field')?.querySelector('label');
+        if (lbl) lbl.textContent = 'Versão/Relesase' + (t === 'Programação' ? ' (obrigatório)' : '');
+      }
+    };
+    enforceReleaseRequired();
+    if (tipoSel) tipoSel.addEventListener('change', () => { updateGroupsByType(); updateTypeTabs(); enforceReleaseRequired(); });
     const typeTabs = modal.querySelectorAll('.type-tab');
     const updateTypeTabs = () => {
       const cur = (tipoSel?.value || '').trim();
@@ -679,6 +689,7 @@ export async function render() {
       if (tipoSel) tipoSel.value = t;
       updateGroupsByType();
       updateTypeTabs();
+      enforceReleaseRequired();
     }));
     const anexBinder = bindAnexosTab(modal, null);
     // Salvar
@@ -698,10 +709,17 @@ export async function render() {
         if (msgEl) msgEl.textContent = 'Selecione um cliente válido da lista.';
         return;
       }
+      const tipoVal = fd.get('tipo');
+      const releaseVal = String(fd.get('release_versao') || '').trim();
+      if (tipoVal === 'Programação' && !releaseVal) {
+        const msgEl = modal.querySelector('#pFormMsg');
+        if (msgEl) msgEl.textContent = 'Informe a Versão/Relesase para tipo Programação.';
+        return;
+      }
       const payload = {
         cliente_id: hitCliente.id_cliente,
         modulo_id: Number(fd.get('modulo_id')),
-        release_versao: fd.get('release_versao'),
+        release_versao: releaseVal || null,
         tipo: fd.get('tipo'),
         prioridade: fd.get('prioridade'),
         status: 'Triagem',
@@ -914,6 +932,7 @@ export async function render() {
           if (closeBtn && modal.closeModal) closeBtn.addEventListener('click', () => modal.closeModal());
           // Mostrar/ocultar grupos conforme tipo
           const tipoSel = modal.querySelector('select[name="tipo"]');
+          const relInput = modal.querySelector('input[name="release_versao"]');
           const grpPS = modal.querySelector('#grpPS');
           const grpImpl = modal.querySelector('#grpImpl');
           const grpAtual = modal.querySelector('#grpAtual');
@@ -930,7 +949,16 @@ export async function render() {
             if (grpOutro) { grpOutro.style.display = showOutro ? '' : 'none'; grpOutro.open = showOutro; }
           };
           updateGroupsByType();
-          if (tipoSel) tipoSel.addEventListener('change', () => { updateGroupsByType(); updateTypeTabs(); });
+          const enforceReleaseRequired = () => {
+            const t = (tipoSel?.value || '').trim();
+            if (relInput) {
+              relInput.required = (t === 'Programação');
+              const lbl = relInput.closest('.field')?.querySelector('label');
+              if (lbl) lbl.textContent = 'Versão/Relesase' + (t === 'Programação' ? ' (obrigatório)' : '');
+            }
+          };
+          enforceReleaseRequired();
+          if (tipoSel) tipoSel.addEventListener('change', () => { updateGroupsByType(); updateTypeTabs(); enforceReleaseRequired(); });
           const typeTabs = modal.querySelectorAll('.type-tab');
           const updateTypeTabs = () => {
             const cur = (tipoSel?.value || '').trim();
@@ -946,6 +974,7 @@ export async function render() {
             if (tipoSel) tipoSel.value = t;
             updateGroupsByType();
             updateTypeTabs();
+            enforceReleaseRequired();
           }));
           const anexBinder = bindAnexosTab(modal, id);
           // Salvar (update)
@@ -960,10 +989,13 @@ export async function render() {
               if (msgEl) msgEl.textContent = 'Selecione um cliente válido da lista.';
               return;
             }
+            const tipoVal = fd.get('tipo');
+            const releaseVal = String(fd.get('release_versao') || '').trim();
+            if (tipoVal === 'Programação' && !releaseVal) { if (msgEl) msgEl.textContent = 'Informe a Versão/Relesase para tipo Programação.'; return; }
             const payload = {
               cliente_id: hitCliente.id_cliente,
               modulo_id: Number(fd.get('modulo_id')),
-              release_versao: fd.get('release_versao'),
+              release_versao: releaseVal || null,
               tipo: fd.get('tipo'),
               prioridade: fd.get('prioridade'),
               tecnico: fd.get('tecnico'),
@@ -1096,6 +1128,7 @@ export async function render() {
           if (closeBtn && modal.closeModal) closeBtn.addEventListener('click', () => modal.closeModal());
           // Mostrar/ocultar grupos conforme tipo
           const tipoSel = modal.querySelector('select[name="tipo"]');
+          const relInput = modal.querySelector('input[name="release_versao"]');
           const grpPS = modal.querySelector('#grpPS');
           const grpImpl = modal.querySelector('#grpImpl');
           const grpAtual = modal.querySelector('#grpAtual');
@@ -1112,7 +1145,16 @@ export async function render() {
             if (grpOutro) { grpOutro.style.display = showOutro ? '' : 'none'; grpOutro.open = showOutro; }
           };
           updateGroupsByType();
-          if (tipoSel) tipoSel.addEventListener('change', updateGroupsByType);
+          const enforceReleaseRequiredClone = () => {
+            const t = (tipoSel?.value || '').trim();
+            if (relInput) {
+              relInput.required = (t === 'Programação');
+              const lbl = relInput.closest('.field')?.querySelector('label');
+              if (lbl) lbl.textContent = 'Versão/Relesase' + (t === 'Programação' ? ' (obrigatório)' : '');
+            }
+          };
+          enforceReleaseRequiredClone();
+          if (tipoSel) tipoSel.addEventListener('change', () => { updateGroupsByType(); enforceReleaseRequiredClone(); });
           // Sincronizar abas de tipo
           const typeTabs = modal.querySelectorAll('.type-tab');
           const updateTypeTabs = () => {
@@ -1129,6 +1171,7 @@ export async function render() {
             if (tipoSel) tipoSel.value = t;
             updateGroupsByType();
             updateTypeTabs();
+            enforceReleaseRequiredClone();
           }));
           if (tipoSel) { tipoSel.dispatchEvent(new Event('change')); }
 
@@ -1150,10 +1193,13 @@ export async function render() {
               if (msgEl) msgEl.textContent = 'Selecione um cliente válido da lista.';
               return;
             }
+            const tipoVal = fd.get('tipo');
+            const releaseVal = String(fd.get('release_versao') || '').trim();
+            if (tipoVal === 'Programação' && !releaseVal) { if (msgEl) msgEl.textContent = 'Informe a Versão/Relesase para tipo Programação.'; return; }
             const payload = {
               cliente_id: hitCliente.id_cliente,
               modulo_id: Number(fd.get('modulo_id')),
-              release_versao: fd.get('release_versao'),
+              release_versao: releaseVal || null,
               tipo: fd.get('tipo'),
               prioridade: fd.get('prioridade'),
               status: 'Triagem',
