@@ -54,7 +54,7 @@ export async function render() {
   if (isGestor) {
     const { data } = await supabase
       .from('pendencias')
-      .select('id, cliente_id, tipo, tecnico, status, data_relato, pendencia_triagem(tecnico_relato)')
+      .select('id, cliente_id, tipo, status, data_relato, pendencia_triagem(tecnico_relato, tecnico_responsavel)')
       .eq('status', 'Aguardando Aceite')
       .order('created_at', { ascending: false })
       .limit(50);
@@ -68,7 +68,7 @@ export async function render() {
     if (ids.length) {
       const { data } = await supabase
         .from('pendencias')
-        .select('id, cliente_id, tipo, tecnico, status, data_relato, pendencia_triagem(tecnico_relato)')
+        .select('id, cliente_id, tipo, status, data_relato, pendencia_triagem(tecnico_relato, tecnico_responsavel)')
         .in('id', ids)
         .eq('status', 'Aguardando Aceite')
         .order('created_at', { ascending: false })
@@ -89,7 +89,7 @@ export async function render() {
         <td>${clienteMap[row.cliente_id] ?? row.cliente_id ?? ''}</td>
         <td>${row.tipo}</td>
         <td class="col-tech-relato">${Array.isArray(row.pendencia_triagem) ? (row.pendencia_triagem[0]?.tecnico_relato ?? '') : (row.pendencia_triagem?.tecnico_relato ?? '')}</td>
-        <td class="col-tech-resp">${row.tecnico}</td>
+        <td class="col-tech-resp">${Array.isArray(row.pendencia_triagem) ? (row.pendencia_triagem[0]?.tecnico_responsavel ?? '') : (row.pendencia_triagem?.tecnico_responsavel ?? '')}</td>
         <td><span class="status ${row.status}" aria-label="${row.status}">${row.status}</span></td>
         <td>${formatDateBr(row.data_relato)}</td>
       </tr>

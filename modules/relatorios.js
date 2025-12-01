@@ -39,8 +39,9 @@ export async function render() {
 
   const supabase = getSupabase();
   const { data: tecnicos } = await supabase
-    .from('pendencias')
-    .select('tecnico, count:tecnico', { count: 'exact' })
+    .from('pendencia_triagem')
+    .select('tecnico_responsavel, count:tecnico_responsavel', { count: 'exact' })
+    .not('tecnico_responsavel', 'is', null)
     .order('count', { ascending: false })
     .limit(10);
 
@@ -56,7 +57,7 @@ export async function render() {
     type: 'bar', data: { labels: prios.map(x => x.label), datasets: [{ data: prios.map(x => x.value), backgroundColor: ['#ef4444','#f59e0b','#3b82f6','#6b7280'] }] }, options: { scales: { x: { ticks: { color: textColor } }, y: { ticks: { color: textColor } } } }
   });
 
-  const labelsT = (tecnicos || []).map(t => t.tecnico);
+  const labelsT = (tecnicos || []).map(t => t.tecnico_responsavel);
   const valuesT = (tecnicos || []).map(t => t.count);
   new Chart(document.getElementById('cTecnico'), {
     type: 'line', data: { labels: labelsT, datasets: [{ data: valuesT, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.2)', tension: 0.3 }] }, options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: textColor } }, y: { ticks: { color: textColor } } } }

@@ -23,7 +23,7 @@ function daysSince(dateStr) {
 function rowHtml(p) {
   const triRelato = Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_relato ?? '') : (p.pendencia_triagem?.tecnico_relato ?? '');
   const triRespRaw = Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_responsavel ?? '') : (p.pendencia_triagem?.tecnico_responsavel ?? '');
-  const triResp = triRespRaw || p.tecnico || '';
+  const triResp = triRespRaw || triRelato || '';
   const clienteNome = clienteMap[p.cliente_id] ?? p.cliente_id ?? '';
   const titulo = String(p.descricao ?? '');
   const tituloAttr = titulo.replace(/"/g, '&quot;');
@@ -36,6 +36,7 @@ function rowHtml(p) {
       <td>${moduloPair}</td>
       <td>${p.tipo}</td>
       <td class="col-tech-relato">${triRelato ?? ''}</td>
+      <td class="col-tech-triagem">${Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_triagem ?? '') : (p.pendencia_triagem?.tecnico_triagem ?? '')}</td>
       <td class="col-tech-resp">${triResp ?? ''}</td>
       <td><span class="prio ${p.prioridade}" aria-label="${p.prioridade}">${p.prioridade}</span></td>
       <td><span class="status ${p.status}" aria-label="${p.status}">${p.status}</span></td>
@@ -74,7 +75,7 @@ async function fetchPendencias(filters = {}, page = 1, limit = 20) {
   const supabase = getSupabase();
   let q = supabase
     .from('pendencias')
-    .select('*, pendencia_triagem(tecnico_relato, tecnico_responsavel)')
+    .select('*, pendencia_triagem(tecnico_relato, tecnico_triagem, tecnico_responsavel)')
     .order('created_at', { ascending: false });
   if (filters.status) q = q.eq('status', filters.status);
   if (filters.tipo) q = q.eq('tipo', filters.tipo);
@@ -93,14 +94,14 @@ async function fetchPendencias(filters = {}, page = 1, limit = 20) {
     }
     q = q.in('cliente_id', ids);
   }
-  if (filters.tecnico) q = q.ilike('tecnico', `%${filters.tecnico}%`);
+  // filtro por técnico (responsável) será aplicado client-side usando pendencia_triagem.tecnico_responsavel
   if (filters.data_ini) q = q.gte('data_relato', filters.data_ini);
   if (filters.data_fim) q = q.lte('data_relato', filters.data_fim);
   const from = (page - 1) * limit;
   const to = from + limit - 1;
   const { data, error, count } = await q
     .range(from, to)
-    .select('*, pendencia_triagem(tecnico_relato, tecnico_responsavel)', { count: 'exact' });
+    .select('*, pendencia_triagem(tecnico_relato, tecnico_triagem, tecnico_responsavel)', { count: 'exact' });
   return { data: data ?? [], error, count: count ?? 0 };
 }
 
@@ -407,6 +408,7 @@ function gridHtml() {
             <th>Módulo</th>
             <th>Tipo</th>
             <th>Técnico Relato</th>
+            <th>Técnico Triagem</th>
             <th>Técnico Resp.</th>
             <th>Prioridade</th>
             <th>Status</th>
@@ -522,7 +524,17 @@ export async function render() {
 
   const apply = async () => {
     const { data, count } = await fetchPendencias(state.filters, state.page, state.limit);
-    state.data = data;
+    let rows = data;
+    const fTec = state.filters?.tecnico || '';
+    if (fTec) {
+      const term = String(fTec).toLowerCase();
+      rows = rows.filter(p => {
+        const tri = Array.isArray(p.pendencia_triagem) ? p.pendencia_triagem[0] : p.pendencia_triagem;
+        const resp = String(tri?.tecnico_responsavel || '').toLowerCase();
+        return resp.includes(term);
+      });
+    }
+    state.data = rows;
     if (state.viewMode === 'grid') {
       const pageInfoEl = document.getElementById('pageInfo');
       if (pageInfoEl) pageInfoEl.textContent = `Página ${state.page} • ${count} registros (virtual ${state.data.length})`;
@@ -570,7 +582,7 @@ export async function render() {
             ${alert}
             <span>${clienteMap[p.cliente_id] ?? p.cliente_id ?? ''} • <a href="#/pendencia?id=${p.id}" class="link">${p.id}</a></span>
           </div>
-          <div class="hint" style="margin-bottom:4px;">${p.tecnico ?? ''}</div>
+          <div class="hint" style="margin-bottom:4px;">${(Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_responsavel ?? '') : (p.pendencia_triagem?.tecnico_responsavel ?? '')) || (Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_relato ?? '') : (p.pendencia_triagem?.tecnico_relato ?? ''))}</div>
           <div style="font-size:12px;">${sanitizeText(p.descricao) || ''}</div>
         </div>
       `;
@@ -723,7 +735,6 @@ export async function render() {
         tipo: fd.get('tipo'),
         prioridade: fd.get('prioridade'),
         status: 'Triagem',
-        tecnico: fd.get('tecnico'),
         data_relato: fd.get('data_relato'),
         previsao_conclusao: fd.get('previsao_conclusao') || null,
         descricao: fd.get('descricao'),
@@ -759,10 +770,11 @@ export async function render() {
             .select('pendencia_id')
             .eq('pendencia_id', pendId)
             .maybeSingle();
+          const tecnicoRelato = (fd.get('tecnico') || '').trim();
           if (existing) {
-            await supabase.from('pendencia_triagem').update({ tecnico_relato: payload.tecnico }).eq('pendencia_id', pendId);
+            await supabase.from('pendencia_triagem').update({ tecnico_relato: tecnicoRelato }).eq('pendencia_id', pendId);
           } else {
-            await supabase.from('pendencia_triagem').insert({ pendencia_id: pendId, tecnico_relato: payload.tecnico });
+            await supabase.from('pendencia_triagem').insert({ pendencia_id: pendId, tecnico_relato: tecnicoRelato });
           }
           await anexBinder.persistAll(pendId);
         }
@@ -868,7 +880,10 @@ export async function render() {
 
         if (act === 'edit') {
           // Abrir modal de edição com dados da pendência
-          const { data: pend } = await supabase.from('pendencias').select('*').eq('id', id).maybeSingle();
+          const [{ data: pend }, { data: tri }] = await Promise.all([
+            supabase.from('pendencias').select('*').eq('id', id).maybeSingle(),
+            supabase.from('pendencia_triagem').select('tecnico_relato').eq('pendencia_id', id).maybeSingle()
+          ]);
           const modal = openModal(formHtml(clientes));
           // Título: Editar Pendência
           const h3 = modal.querySelector('h3');
@@ -885,7 +900,8 @@ export async function render() {
           setVal(modal.querySelector('input[name="release_versao"]'), pend?.release_versao ?? '');
           setVal(modal.querySelector('select[name="tipo"]'), pend?.tipo ?? '');
           setVal(modal.querySelector('select[name="prioridade"]'), pend?.prioridade ?? '');
-          setVal(tecSel, pend?.tecnico ?? '');
+          setVal(tecSel, tri?.tecnico_relato ?? '');
+          if (tecSel) tecSel.disabled = String(pend?.status || '').trim() !== 'Triagem';
           const toYMD = (d) => {
             if (!d) return '';
             if (typeof d === 'string') {
@@ -998,7 +1014,6 @@ export async function render() {
               release_versao: releaseVal || null,
               tipo: fd.get('tipo'),
               prioridade: fd.get('prioridade'),
-              tecnico: fd.get('tecnico'),
               data_relato: fd.get('data_relato'),
               previsao_conclusao: fd.get('previsao_conclusao') || null,
               descricao: fd.get('descricao'),
@@ -1018,6 +1033,19 @@ export async function render() {
               if (msgEl) msgEl.textContent = 'Erro ao salvar: ' + error.message;
               return;
             }
+            const tecnicoRelato = (fd.get('tecnico') || '').trim();
+            const prevRelato = tri?.tecnico_relato || '';
+            if (String(pend?.status || '').trim() === 'Triagem' && tecnicoRelato && tecnicoRelato !== prevRelato) {
+              await supabase.from('pendencia_triagem').update({ tecnico_relato: tecnicoRelato }).eq('pendencia_id', id);
+              await supabase.from('pendencia_historicos').insert({
+                pendencia_id: id,
+                usuario: session.get()?.nome || tecnicoRelato,
+                acao: 'Técnico do Relato alterado',
+                campo_alterado: 'tecnico_relato',
+                valor_anterior: prevRelato || null,
+                valor_novo: tecnicoRelato
+              });
+            }
             if (msgEl) msgEl.textContent = 'Pendência atualizada com sucesso.';
             if (modal.closeModal) modal.closeModal();
             apply();
@@ -1034,8 +1062,13 @@ export async function render() {
         if (act === 'res') {
           const { data: prev } = await supabase
               .from('pendencias')
-              .select('status, tecnico, descricao')
+              .select('status, descricao')
               .eq('id', id)
+              .maybeSingle();
+          const { data: triUser } = await supabase
+              .from('pendencia_triagem')
+              .select('tecnico_responsavel, tecnico_relato')
+              .eq('pendencia_id', id)
               .maybeSingle();
           
           const formatPendId = (val) => {
@@ -1074,7 +1107,7 @@ export async function render() {
             const fd = new FormData(form);
             const sol = fd.get('solucao_orientacao') || null;
           
-            const usuario = session.get()?.nome || prev?.tecnico || '—';
+            const usuario = session.get()?.nome || triUser?.tecnico_responsavel || triUser?.tecnico_relato || '—';
             await supabase.from('pendencias').update({ status: 'Resolvido', solucao_orientacao: sol }).eq('id', id);
             await supabase.from('pendencia_historicos').insert({
               pendencia_id: id, acao: 'Pendência resolvida', usuario,
@@ -1085,7 +1118,10 @@ export async function render() {
           });
           return;
         } else if (act === 'clone') {
-          const { data: pend } = await supabase.from('pendencias').select('*').eq('id', id).maybeSingle();
+          const [{ data: pend }, { data: tri }] = await Promise.all([
+            supabase.from('pendencias').select('*').eq('id', id).maybeSingle(),
+            supabase.from('pendencia_triagem').select('tecnico_relato').eq('pendencia_id', id).maybeSingle()
+          ]);
           const modal = openModal(formHtml(clientes));
           // Popular selects
           const modSel = modal.querySelector('#moduloSel');
@@ -1099,7 +1135,7 @@ export async function render() {
           setVal(modal.querySelector('input[name="release_versao"]'), '');
           setVal(modal.querySelector('select[name="tipo"]'), pend?.tipo ?? '');
           setVal(modal.querySelector('select[name="prioridade"]'), pend?.prioridade ?? '');
-          setVal(tecSel, pend?.tecnico ?? '');
+          setVal(tecSel, tri?.tecnico_relato ?? '');
           // Datas: hoje por padrão
           const toYMD = (d) => { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; };
           const dr = modal.querySelector('input[name="data_relato"]');
@@ -1203,7 +1239,6 @@ export async function render() {
               tipo: fd.get('tipo'),
               prioridade: fd.get('prioridade'),
               status: 'Triagem',
-              tecnico: fd.get('tecnico'),
               data_relato: fd.get('data_relato'),
               previsao_conclusao: fd.get('previsao_conclusao') || null,
               descricao: fd.get('descricao'),
@@ -1232,10 +1267,11 @@ export async function render() {
                   .select('pendencia_id')
                   .eq('pendencia_id', pendId)
                   .maybeSingle();
+                const tecnicoRelato = (fd.get('tecnico') || '').trim();
                 if (existing) {
-                  await supa.from('pendencia_triagem').update({ tecnico_relato: payload.tecnico }).eq('pendencia_id', pendId);
+                  await supa.from('pendencia_triagem').update({ tecnico_relato: tecnicoRelato }).eq('pendencia_id', pendId);
                 } else {
-                  await supa.from('pendencia_triagem').insert({ pendencia_id: pendId, tecnico_relato: payload.tecnico });
+                  await supa.from('pendencia_triagem').insert({ pendencia_id: pendId, tecnico_relato: tecnicoRelato });
                 }
                 await anexBinder.persistAll(pendId);
               }
@@ -1258,7 +1294,12 @@ export async function render() {
         const moduloPair = String(moduloNome) + (pend?.release_versao ? '/' + pend.release_versao : '');
         const tipo = pend?.tipo || '—';
         const prio = pend?.prioridade || '—';
-        const tecnico = pend?.tecnico || '—';
+        const { data: triOS } = await supabase
+          .from('pendencia_triagem')
+          .select('tecnico_responsavel, tecnico_relato')
+          .eq('pendencia_id', id)
+          .maybeSingle();
+        const tecnico = triOS?.tecnico_responsavel || triOS?.tecnico_relato || '—';
         const status = pend?.status || '—';
         const dataAbertura = formatDateBr(pend?.data_relato);
           const prevLabel = status === 'Resolvido' ? 'Data Conclusão' : 'Previsão de Conclusão';

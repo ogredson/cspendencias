@@ -130,7 +130,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
       return `Rejeitada por: ${quem}${quando ? ` • em: ${quando}` : ''} • Motivo: ${motivo}`;
     }
     if (s === 'Resolvido') {
-      const quem = histResolvida?.usuario ?? pend?.tecnico ?? tri?.tecnico_responsavel ?? '—';
+  const quem = histResolvida?.usuario ?? tri?.tecnico_responsavel ?? tri?.tecnico_relato ?? '—';
       const quando = fmt(histResolvida?.created_at);
       return `Resolvida por: ${quem}${quando ? ` • em: ${quando}` : ''}`;
     }
@@ -273,7 +273,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
               </tr>
               <tr>
                 <th>Técnico:</th>
-                <td>${pend?.tecnico ?? '—'}</td>
+                <td>${tri?.tecnico_responsavel ?? tri?.tecnico_relato ?? '—'}</td>
               </tr>
               <tr>
                 <th>Prioridade:</th>
@@ -296,7 +296,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
 
         <div class="card">
           <div class="section-head warning">Controle de Fluxo</div>
-          <div><b>Técnico do Relato:</b> ${tri?.tecnico_relato ?? pend?.tecnico ?? ''}</div>
+          <div><b>Técnico do Relato:</b> ${tri?.tecnico_relato ?? ''}</div>
           <div class="field">
             <label>Técnico de Triagem</label>
             <div style="display:flex; gap:8px; align-items:center;">
@@ -428,7 +428,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const moduloNome = (modulos || []).find(m => m.id === pend?.modulo_id)?.nome ?? pend?.modulo_id ?? '';
     const moduloPair = String(moduloNome) + (pend?.release_versao ? '/' + pend.release_versao : '');
     const cardTitle = `${formatPendId(pend?.id)}: ${pend?.descricao ?? ''}`.trim();
-    const responsavelNome = pend?.tecnico || tri?.tecnico_responsavel || tri?.tecnico_relato || session.get()?.nome || '—';
+    const responsavelNome = tri?.tecnico_responsavel || tri?.tecnico_relato || session.get()?.nome || '—';
     const buildDesc = () => {
       const linhas = [
         `Cliente: ${clienteNome}`,
@@ -653,11 +653,11 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const resp = selVal;
     const ok = await confirmDialog(`Você está prestes a aceitar a análise da pendência ${id} por ${resp}.`);
     if (!ok) return;
-    // Aceitar análise: não define tecnico_responsavel para evitar log de "resolução" pelo trigger
-    const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_triagem: tri?.tecnico_triagem || resp, data_aceite: new Date().toISOString() });
+    // Aceitar análise: define responsável e data de aceite
+    const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_triagem: tri?.tecnico_triagem || resp, tecnico_responsavel: resp, data_aceite: new Date().toISOString() });
     if (e1) { alert('Erro análise: ' + e1.message); return; }
     const { error: e2 } = await supabase.from('pendencias').update({
-      status: 'Em Analise', tecnico: resp
+      status: 'Em Analise'
     }).eq('id', id);
     if (e2) { alert('Erro status: ' + e2.message); return; }
     // Log claro para análise: mudar status para Em Analise
@@ -681,7 +681,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_responsavel: resp, data_aceite: new Date().toISOString() });
     if (e1) { alert('Erro aceite: ' + e1.message); return; }
     const { error: e2 } = await supabase.from('pendencias').update({
-      status: 'Em Andamento', tecnico: resp
+      status: 'Em Andamento'
     }).eq('id', id);
     if (e2) { alert('Erro status: ' + e2.message); return; }
     // Evita duplicidade com trigger de triagem; registra só mudança de status
@@ -703,32 +703,37 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const tester = selVal;
     const ok = await confirmDialog(`Você está prestes a enviar a pendência ${id} para testes por ${tester}.`);
     if (!ok) return;
-    const { error: e1 } = await supabase.from('pendencias').update({ status: 'Em Teste', tecnico: tester }).eq('id', id);
+    const { error: e1 } = await supabase.from('pendencias').update({ status: 'Em Teste' }).eq('id', id);
     if (e1) { alert('Erro status: ' + e1.message); return; }
     await supabase.from('pendencia_historicos').insert({
       pendencia_id: id,
       acao: 'Pendência enviada para testes',
       usuario: session.get()?.nome || tester,
-      campo_alterado: 'tecnico',
-      valor_anterior: pend?.tecnico ?? null,
-      valor_novo: tester
+      campo_alterado: 'status',
+      valor_anterior: pend?.status ?? null,
+      valor_novo: 'Em Teste'
     });
     render();
   });
 
   document.getElementById('btnRejeitar').addEventListener('click', async () => {
-    const selVal = document.getElementById('triagemSel').value;
-    if (!selVal) { alert('Defina o Técnico de Triagem antes de rejeitar.'); return; }
-    const ok = await confirmDialog(`Você está prestes a rejeitar a pendência ${id}.`);
+    const triSel = document.getElementById('triagemSel');
+    const triResp = tri?.tecnico_responsavel || '';
+    const triTri = tri?.tecnico_triagem || '';
+    const selVal = triSel ? (triSel.value || '') : '';
+    const rejeitante = triResp || triTri || selVal;
+    if (!rejeitante) { alert('Selecione o Técnico no box de triagem para rejeitar.'); return; }
+    const pid = formatPendId(id);
+    const ok = await confirmDialog(`${rejeitante} Você está prestes a rejeitar a pendência ${pid}.`);
     if (!ok) return;
     const motivo = prompt('Motivo da rejeição:');
     if (!motivo) return;
-    const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_triagem: tri?.tecnico_triagem || selVal, data_rejeicao: new Date().toISOString(), motivo_rejeicao: motivo });
+    const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_triagem: rejeitante, data_rejeicao: new Date().toISOString(), motivo_rejeicao: motivo });
     if (e1) { alert('Erro rejeição: ' + e1.message); return; }
     const { error: e2 } = await supabase.from('pendencias').update({ status: 'Rejeitada' }).eq('id', id);
     if (e2) { alert('Erro status: ' + e2.message); return; }
     await supabase.from('pendencia_historicos').insert({
-      pendencia_id: id, acao: 'Pendência rejeitada', usuario: selVal,
+      pendencia_id: id, acao: 'Pendência rejeitada', usuario: rejeitante,
       campo_alterado: 'motivo_rejeicao', valor_anterior: null, valor_novo: motivo
     });
     render();
@@ -745,7 +750,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
     if (e1) { alert('Erro responsável: ' + e1.message); return; }
     // Atualiza status e técnico atual na pendência
     const { error: e2 } = await supabase.from('pendencias').update({
-      status: 'Aguardando o Cliente', tecnico: selVal
+      status: 'Aguardando o Cliente'
     }).eq('id', id);
     if (e2) { alert('Erro status: ' + e2.message); return; }
     // Histórico da mudança de responsável
@@ -950,7 +955,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const moduloPair = String(moduloNome) + (pend?.release_versao ? '/' + pend.release_versao : '');
     const tipo = pend?.tipo || '—';
     const prio = pend?.prioridade || '—';
-    const tecnico = pend?.tecnico || tri?.tecnico_relato || '—';
+    const tecnico = tri?.tecnico_responsavel || tri?.tecnico_relato || '—';
     const usuarioTec = (usuarios || []).find(u => String(u.nome || '').toLowerCase() === String(tecnico).toLowerCase());
     const phoneRaw = usuarioTec?.fone_celular || '';
     const phone = normalizePhone(phoneRaw);
