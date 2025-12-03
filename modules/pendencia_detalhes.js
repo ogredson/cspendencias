@@ -100,7 +100,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
 
   const statusDetail = (() => {
     const s = String(pend?.status || '');
-    if (s === 'Triagem') return 'Aguardando designação para triagem.';
+    if (s === 'Triagem') return 'Aguardando designação.';
     if (s === 'Aguardando Aceite') {
       const quem = tri?.tecnico_triagem ?? '—';
       const quando = fmt(tri?.data_triagem) || fmt(histDesignado?.created_at);
@@ -315,7 +315,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
             <label>Técnico de Triagem</label>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
               <select id="triagemSel" class="input" style="flex:1"><option value="">Selecione...</option>${triagemSel}</select>
-              <button type="button" class="btn warning" id="btnDesignar">Designar para triagem</button>
+              <button type="button" class="btn warning" id="btnDesignar">Designar Técnico</button>
               <button type="button" class="btn warning" id="btnNotifyTriagem">Notificar Técnico</button>
             </div>
           </div>
@@ -760,22 +760,50 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const me = session.get()?.nome || '';
     const triTri = tri?.tecnico_triagem || '';
     const triResp = tri?.tecnico_responsavel || '';
-    const rejeitante = statusAwait ? (triTri || me) : me; // prioridade: aguardando aceite -> técnico de triagem; caso contrário -> responsável logado
+    const rejeitante = statusAwait ? (triTri || me) : me;
     if (!rejeitante) { alert('Usuário atual inválido para rejeição.'); return; }
+    const titulo = String(pend?.descricao || '').trim();
     const pid = formatPendId(id);
-    const ok = await confirmDialog(`${rejeitante} Você está prestes a rejeitar a pendência ${pid}.`);
-    if (!ok) return;
-    const motivo = prompt('Motivo da rejeição:');
-    if (!motivo) return;
-    const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_triagem: rejeitante, data_rejeicao: new Date().toISOString(), motivo_rejeicao: motivo });
-    if (e1) { alert('Erro rejeição: ' + e1.message); return; }
-    const { error: e2 } = await supabase.from('pendencias').update({ status: 'Rejeitada' }).eq('id', id);
-    if (e2) { alert('Erro status: ' + e2.message); return; }
-    await supabase.from('pendencia_historicos').insert({
-      pendencia_id: id, acao: 'Pendência rejeitada', usuario: rejeitante,
-      campo_alterado: 'motivo_rejeicao', valor_anterior: null, valor_novo: motivo
+    const modal = openModal(`
+      <div class="card">
+        <h3>Rejeitar Pendência</h3>
+        <form id="rejectFormDet">
+          <div class="field">
+            <label>Motivo da Rejeição</label>
+            <textarea name="motivo_rejeicao" class="input" rows="6" placeholder="Descreva o motivo da rejeição..."></textarea>
+          </div>
+          <div class="toolbar" style="justify-content:flex-end">
+            <button class="btn" type="button" id="cancelRejectDet">Cancelar</button>
+            <button class="btn danger" type="submit">Salvar e Rejeitar</button>
+          </div>
+        </form>
+      </div>
+    `);
+    const cancelBtn = modal.querySelector('#cancelRejectDet');
+    if (cancelBtn && modal.closeModal) cancelBtn.addEventListener('click', () => modal.closeModal());
+    const form = modal.querySelector('#rejectFormDet');
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const ok = await confirmDialog(`${rejeitante} Confirmar rejeição da pendência ${pid}${titulo ? ` • ${titulo}` : ''}?`);
+      if (!ok) return;
+      const fd = new FormData(form);
+      const motivo = String(fd.get('motivo_rejeicao') || '').trim();
+      if (!motivo) { alert('Informe o motivo da rejeição.'); return; }
+      const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_triagem: rejeitante, data_rejeicao: new Date().toISOString(), motivo_rejeicao: motivo });
+      if (e1) { alert('Erro rejeição: ' + e1.message); return; }
+      const { error: e2 } = await supabase.from('pendencias').update({ status: 'Rejeitada' }).eq('id', id);
+      if (e2) { alert('Erro status: ' + e2.message); return; }
+      await supabase.from('pendencia_historicos').insert({
+        pendencia_id: id,
+        acao: 'Pendência rejeitada',
+        usuario: rejeitante,
+        campo_alterado: 'motivo_rejeicao',
+        valor_anterior: null,
+        valor_novo: motivo
+      });
+      if (modal.closeModal) modal.closeModal();
+      render();
     });
-    render();
   });
 
   // Aguardar Cliente: requer técnico selecionado; muda status para "Aguardando o Cliente" e define responsável

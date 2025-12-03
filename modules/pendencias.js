@@ -29,6 +29,8 @@ function rowHtml(p) {
   const titulo = String(p.descricao ?? '');
   const tituloAttr = titulo.replace(/"/g, '&quot;');
   const moduloPair = (moduloMap[p.modulo_id] ?? p.modulo_id ?? '') + (p.release_versao ? '/' + p.release_versao : '');
+  const role = session.get()?.funcao || '';
+  const isGestor = ['Adm','Supervisor','Gerente'].includes(String(role));
   return `
     <tr data-id="${p.id}">
       <td><input type="checkbox" class="sel" /></td>
@@ -51,7 +53,7 @@ function rowHtml(p) {
         <button class="btn info" data-act="clone">Clonar</button>
         <button class="btn os" data-act="os">O.S.</button>
         <button class="btn light-warning" data-act="edit">Editar</button>
-        <button class="btn danger" data-act="del">Excluir</button>
+        <button class="btn danger" data-act="del" ${isGestor ? '' : 'disabled title="Apenas gestores (Adm, Supervisor, Gerente) podem excluir"'}>Excluir</button>
       </td>
     </tr>
   `;
@@ -370,6 +372,12 @@ function filtersHtml(clientes, usuarios = [], modulos = []) {
       <input id="fCliente" class="input" placeholder="Cliente (nome)" list="clientesList" />
       <datalist id="clientesList">${clienteOptions}</datalist>
       <select id="fTecnico" class="input">${tecnicoOptions}</select>
+      <select id="fTecPos" class="input" title="Posição do técnico">
+        <option value="any" selected>Qualquer</option>
+        <option value="relato">Relato</option>
+        <option value="triagem">Triagem</option>
+        <option value="responsavel">Responsável</option>
+      </select>
       <input id="fDataIni" class="input" type="date" />
       <input id="fDataFim" class="input" type="date" />
       <select id="fRangePreset" class="input" title="Período rápido">
@@ -491,6 +499,7 @@ export async function render() {
       tipo: sanitizeText(document.getElementById('fTipo').value) || undefined,
       modulo_id: sanitizeText(document.getElementById('fModulo').value) || undefined,
       tecnico: sanitizeText(document.getElementById('fTecnico').value) || undefined,
+      tecnico_role: sanitizeText(document.getElementById('fTecPos').value) || 'any',
       data_ini: toDate(document.getElementById('fDataIni').value) || undefined,
       data_fim: toDate(document.getElementById('fDataFim').value) || undefined,
     };
@@ -526,6 +535,7 @@ export async function render() {
     setVal('fTipo', savedFilters.tipo || '');
     setVal('fModulo', savedFilters.modulo_id || '');
     setVal('fTecnico', savedFilters.tecnico || '');
+    setVal('fTecPos', savedFilters.tecnico_role || 'any');
     if (iniEl) iniEl.value = savedFilters.data_ini || '';
     if (fimEl) fimEl.value = savedFilters.data_fim || '';
     const clienteNome = (savedFilters.cliente_id && clienteMap[savedFilters.cliente_id]) ? clienteMap[savedFilters.cliente_id] : (savedFilters.cliente_like || '');
@@ -551,12 +561,18 @@ export async function render() {
     const { data, count } = await fetchPendencias(state.filters, state.page, state.limit);
     let rows = data;
     const fTec = state.filters?.tecnico || '';
+    const fRole = state.filters?.tecnico_role || 'any';
     if (fTec) {
       const term = String(fTec).toLowerCase();
       rows = rows.filter(p => {
         const tri = Array.isArray(p.pendencia_triagem) ? p.pendencia_triagem[0] : p.pendencia_triagem;
+        const relato = String(tri?.tecnico_relato || '').toLowerCase();
+        const triag = String(tri?.tecnico_triagem || '').toLowerCase();
         const resp = String(tri?.tecnico_responsavel || '').toLowerCase();
-        return resp.includes(term);
+        if (fRole === 'relato') return relato.includes(term);
+        if (fRole === 'triagem') return triag.includes(term);
+        if (fRole === 'responsavel') return resp.includes(term);
+        return relato.includes(term) || triag.includes(term) || resp.includes(term);
       });
     }
     state.data = rows;
@@ -629,9 +645,11 @@ export async function render() {
   });
   document.getElementById('clearFilters').addEventListener('click', () => {
     // Reset visual
-    ['fStatus','fTipo','fModulo','fCliente','fTecnico'].forEach(id => {
+    ['fStatus','fTipo','fModulo','fCliente','fTecnico','fTecPos'].forEach(id => {
       const el = document.getElementById(id); if (el) el.value = '';
     });
+    const posEl = document.getElementById('fTecPos');
+    if (posEl) posEl.value = 'any';
     const t = new Date();
     const s7 = new Date(t); s7.setDate(t.getDate() - 7);
     const ini = toYMD(s7); const fim = toYMD(t);
@@ -822,7 +840,7 @@ export async function render() {
     storage.set('pendencias_filters', state.filters, 30 * 24 * 60 * 60 * 1000);
     debouncedApply();
   }, 250);
-  ['fStatus','fTipo','fModulo','fCliente','fTecnico','fDataIni','fDataFim'].forEach(id => {
+  ['fStatus','fTipo','fModulo','fCliente','fTecnico','fTecPos','fDataIni','fDataFim'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('change', updateFilters);
@@ -1084,6 +1102,9 @@ export async function render() {
           return;
         }
         if (act === 'del') {
+          const role = session.get()?.funcao || '';
+          const isGestor = ['Adm','Supervisor','Gerente'].includes(String(role));
+          if (!isGestor) { alert('Apenas gestores (Adm, Supervisor, Gerente) podem excluir.'); return; }
           const ok = await confirmDialog(`Você está prestes a excluir a pendência ${id}. Esta ação é permanente.`);
           if (!ok) return;
           await supabase.from('pendencias').delete().eq('id', id);
