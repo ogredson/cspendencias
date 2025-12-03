@@ -52,26 +52,14 @@ function renderHelp() {
   const m = openModal(`
     <div style="padding:12px;">
       <h3>Ajuda</h3>
-      <div class="hint" style="margin-bottom:8px;">Guia rápido em linguagem simples.</div>
+      <div class="hint" style="margin-bottom:8px;">Guia atualizado com fluxos, permissões e filtros.</div>
       <details open>
-        <summary>🆕 Criar pendência</summary>
+        <summary>🏠 Visão geral</summary>
         <div style="padding:8px 0;">
           <ul>
-            <li>Acesse <b>Pendências</b> e clique em <b>Novo</b>.</li>
-            <li>Preencha <b>Cliente</b>, <b>Módulo</b>, <b>Tipo</b>, <b>Prioridade</b> e <b>Técnico do Relato</b>.</li>
-            <li>Informe <b>Data do relato</b>, <b>Título</b> e a <b>Descrição</b>.</li>
-            <li>Opcional: informe o <b>Link do Trello</b> se já existir.</li>
-            <li>Salve. O <b>Status</b> começa em <b>Triagem</b>.</li>
-          </ul>
-        </div>
-      </details>
-      <details>
-        <summary>✏️ Editar pendência</summary>
-        <div style="padding:8px 0;">
-          <ul>
-            <li>Na tabela, clique em <b>Editar</b> na linha desejada.</li>
-            <li>Altere os campos necessários e clique em <b>Salvar</b>.</li>
-            <li>Use as abas para acessar <b>Dados</b> e <b>Solução/Orientação</b>.</li>
+            <li>Barra superior: mostra o nome do usuário, tema (claro/escuro) e sair.</li>
+            <li>Menu: <b>Dashboard</b>, <b>Pendências</b>, <b>Relatórios</b>, <b>Ajuda</b>.</li>
+            <li><b>Módulos</b> e <b>Configurações</b> ficam visíveis apenas para usuários <b>Adm</b>.</li>
           </ul>
         </div>
       </details>
@@ -79,14 +67,51 @@ function renderHelp() {
         <summary>🔄 Fluxo da pendência</summary>
         <div style="padding:8px 0;">
           <ul>
-            <li><b>Triagem</b>: pendência criada e aguardando análise inicial.</li>
-            <li><b>Aguardando Aceite</b>: aguardando confirmação do responsável.</li>
-            <li><b>Em Analise</b>: entendimento do problema e definição do plano.</li>
-            <li><b>Em Andamento</b>: execução do que foi planejado.</li>
+            <li><b>Triagem</b>: Aguardando designação.</li>
+            <li><b>Aguardando Aceite</b>: aguardando confirmação do técnico designado.</li>
+            <li><b>Em Analise</b>: entendimento do problema e definição de plano.</li>
+            <li><b>Em Andamento</b>: execução do plano.</li>
             <li><b>Em Teste</b>: validação das mudanças.</li>
-            <li><b>Aguardando o Cliente</b>: esperando retorno do cliente.</li>
-            <li><b>Rejeitada</b>: a demanda não segue (com justificativa).</li>
+            <li><b>Aguardando o Cliente</b>: aguardando retorno do cliente.</li>
+            <li><b>Rejeitada</b>: a demanda não segue; <b>motivo</b> é exibido no grid.</li>
             <li><b>Resolvido</b>: concluída e validada.</li>
+          </ul>
+        </div>
+      </details>
+      <details>
+        <summary>🧑‍💻 Botões e permissões</summary>
+        <div style="padding:8px 0;">
+          <ul>
+            <li><b>Gestores</b> (Adm, Supervisor, Gerente): acesso total aos botões.</li>
+            <li>Quando <b>Aguardando Aceite</b>:
+              “Aceitar Análise”, “Aceitar Resolução” e “Rejeitar” habilitam apenas para o técnico de triagem aguardando aceite.
+            </li>
+            <li>“Resolver” habilita para o técnico aguardando aceite ou para o <b>responsável</b>.</li>
+            <li>“Excluir” é restrito a gestores; demais usuários veem o botão desabilitado.</li>
+            <li>Botões desabilitados usam estilo padrão visual (opacidade reduzida e cursor <i>not-allowed</i>).</li>
+          </ul>
+        </div>
+      </details>
+      <details>
+        <summary>🧩 Ações da janela de detalhes</summary>
+        <div style="padding:8px 0;">
+          <ul>
+            <li><b>Designar Técnico</b>: define o técnico de triagem e muda o status para “Aguardando Aceite”.</li>
+            <li><b>Resolver</b>: abre modal para informar <b>Solução/Orientação</b> e confirma antes de salvar.</li>
+            <li><b>Rejeitar</b>: abre modal para informar <b>Motivo da Rejeição</b> e confirma antes de salvar.</li>
+            <li><b>Aguardar Cliente</b> e <b>Enviar para Testes</b>: não alteram o responsável; a confirmação cita o técnico aguardando aceite ou o usuário logado.</li>
+            <li><b>Notificar Técnico</b>: envia resumo por WhatsApp quando configurado.</li>
+          </ul>
+        </div>
+      </details>
+      <details>
+        <summary>🔍 Filtros e pesquisa</summary>
+        <div style="padding:8px 0;">
+          <ul>
+            <li>Filtros aplicados são <b>persistidos</b> e mantidos entre telas; use <b>Limpar</b> para voltar ao padrão (Últimos 7 dias).</li>
+            <li>Filtro de <b>Técnico</b> possui seletor de posição: <b>Qualquer</b>, <b>Relato</b>, <b>Triagem</b>, <b>Responsável</b>.</li>
+            <li>Visualização <b>Grid/Kanban</b> alternável e também persistida.</li>
+            <li>Pesquisa por cliente: digite o nome; se não houver ID, faz busca por nome aproximado.</li>
           </ul>
         </div>
       </details>
@@ -94,29 +119,20 @@ function renderHelp() {
         <summary>🧾 Campos da pendência</summary>
         <div style="padding:8px 0;">
           <ul>
-            <li><b>Cliente</b>: quem solicitou.</li>
-            <li><b>Módulo</b>: área do sistema relacionada.</li>
-            <li><b>Tipo</b>: natureza (Programação, Suporte, etc.).</li>
-            <li><b>Prioridade</b>: urgência (Crítica, Alta, Média, Baixa).</li>
-            <li><b>Técnico do Relato</b>: quem descreveu o problema.</li>
-            <li><b>Data do relato</b>: quando foi registrado.</li>
-            <li><b>Previsão conclusão</b>: quando espera finalizar.</li>
-            <li><b>Título</b> e <b>Descrição</b>: resumo e detalhes.</li>
-            <li><b>Situação</b>, <b>Etapas</b>, <b>Frequência</b>, <b>Informações</b>: ajudam o diagnóstico.</li>
-            <li><b>Solução/Orientação</b>: o que foi feito ou recomendado.</li>
-            <li><b>Link do Trello</b>: endereço do card vinculado.</li>
+            <li><b>Cliente</b>, <b>Módulo/Release</b>, <b>Tipo</b>, <b>Prioridade</b>, <b>Técnico do Relato</b>.</li>
+            <li><b>Datas</b>: relato e previsão de conclusão.</li>
+            <li><b>Descrição</b> e <b>Solução/Orientação</b>.</li>
+            <li>Informações adicionais (Situação, Etapas, Frequência) para tipos Programação/Suporte.</li>
+            <li><b>Link do Trello</b> quando vinculado.</li>
           </ul>
         </div>
       </details>
       <details>
-        <summary>📌 Trello: criar e vincular cards</summary>
+        <summary>📌 Trello</summary>
         <div style="padding:8px 0;">
           <ul>
-            <li>Na tela da pendência, use <b>Gerar Card Trello</b>.</li>
-            <li>Escolha <b>Área de trabalho</b>, <b>Board</b> e <b>Lista</b>.</li>
-            <li>Revise <b>Título</b> e <b>Descrição</b> do card.</li>
-            <li>Clique em <b>Criar Card</b>. O link fica salvo na pendência.</li>
-            <li>Para abrir, use <b>Ver Card Trello</b> quando houver link.</li>
+            <li>Use <b>Gerar Card Trello</b>, escolha Área de trabalho, Board e Lista, revise título e descrição e confirme.</li>
+            <li>O link do card é salvo na pendência; use <b>Ver Card Trello</b> para abrir.</li>
           </ul>
         </div>
       </details>
