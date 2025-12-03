@@ -401,7 +401,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
   const canAnalise = isGestor || (statusAwait && isAwaitingMe);
   const canAceitar = isGestor || (statusAwait && isAwaitingMe);
   const canRejeitar = isGestor || (statusAwait && isAwaitingMe);
-  const canResolver = isGestor || (statusAwait && (isAwaitingMe || isResp));
+  const canResolver = isGestor || isResp || (statusAwait && isAwaitingMe);
   const disableMap = {
     btnAnalise: canAnalise,
     btnAceitar: canAceitar,

@@ -30,6 +30,8 @@ export function initAppShell(mount) {
     if (el) el.textContent = s?.nome || '';
     const cfgLink = document.querySelector('#nav a[data-route="#/config"]');
     if (cfgLink) cfgLink.style.display = (s?.funcao === 'Adm') ? '' : 'none';
+    const modLink = document.querySelector('#nav a[data-route="#/modulos"]');
+    if (modLink) modLink.style.display = (s?.funcao === 'Adm') ? '' : 'none';
   });
 
   import('../utils/theme.js').then(({ theme }) => {
@@ -50,6 +52,8 @@ export function initAppShell(mount) {
     if (el) el.textContent = '';
     const cfgLink = document.querySelector('#nav a[data-route="#/config"]');
     if (cfgLink) cfgLink.style.display = 'none';
+    const modLink = document.querySelector('#nav a[data-route="#/modulos"]');
+    if (modLink) modLink.style.display = 'none';
     location.hash = '#/login';
   });
 

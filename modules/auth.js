@@ -48,6 +48,8 @@ export function renderAuth() {
       if (userEl) userEl.textContent = data.nome || '';
       const cfgLink = document.querySelector('#nav a[data-route="#/config"]');
       if (cfgLink) cfgLink.style.display = (data.funcao === 'Adm') ? '' : 'none';
+      const modLink = document.querySelector('#nav a[data-route="#/modulos"]');
+      if (modLink) modLink.style.display = (data.funcao === 'Adm') ? '' : 'none';
       location.hash = '#/dashboard';
     } catch (err) {
       msg.textContent = 'Erro: ' + err.message;

@@ -24,6 +24,7 @@ function rowHtml(p) {
   const triRelato = Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_relato ?? '') : (p.pendencia_triagem?.tecnico_relato ?? '');
   const triRespRaw = Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_responsavel ?? '') : (p.pendencia_triagem?.tecnico_responsavel ?? '');
   const triResp = triRespRaw || triRelato || '';
+  const motivoRej = Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.motivo_rejeicao ?? '') : (p.pendencia_triagem?.motivo_rejeicao ?? '');
   const clienteNome = clienteMap[p.cliente_id] ?? p.cliente_id ?? '';
   const titulo = String(p.descricao ?? '');
   const tituloAttr = titulo.replace(/"/g, '&quot;');
@@ -39,7 +40,10 @@ function rowHtml(p) {
       <td class="col-tech-triagem">${Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_triagem ?? '') : (p.pendencia_triagem?.tecnico_triagem ?? '')}</td>
       <td class="col-tech-resp">${triResp ?? ''}</td>
       <td><span class="prio ${p.prioridade}" aria-label="${p.prioridade}">${p.prioridade}</span></td>
-      <td><span class="status ${p.status}" aria-label="${p.status}">${p.status}</span></td>
+      <td>
+        <span class="status ${p.status}" aria-label="${p.status}" ${p.status === 'Rejeitada' && motivoRej ? `title="Motivo: ${sanitizeText(motivoRej)}"` : ''}>${p.status}</span>
+        ${p.status === 'Rejeitada' && motivoRej ? `<div class="hint">Motivo: ${sanitizeText(motivoRej)}</div>` : ''}
+      </td>
       <td>${daysSince(p.data_relato)}</td>
       <td>${formatDateBr(p.data_relato)}</td>
       <td>
@@ -75,7 +79,7 @@ async function fetchPendencias(filters = {}, page = 1, limit = 20) {
   const supabase = getSupabase();
   let q = supabase
     .from('pendencias')
-    .select('*, pendencia_triagem(tecnico_relato, tecnico_triagem, tecnico_responsavel)')
+    .select('*, pendencia_triagem(tecnico_relato, tecnico_triagem, tecnico_responsavel, motivo_rejeicao)')
     .order('created_at', { ascending: false });
   if (filters.status) q = q.eq('status', filters.status);
   if (filters.tipo) q = q.eq('tipo', filters.tipo);
@@ -101,7 +105,7 @@ async function fetchPendencias(filters = {}, page = 1, limit = 20) {
   const to = from + limit - 1;
   const { data, error, count } = await q
     .range(from, to)
-    .select('*, pendencia_triagem(tecnico_relato, tecnico_triagem, tecnico_responsavel)', { count: 'exact' });
+    .select('*, pendencia_triagem(tecnico_relato, tecnico_triagem, tecnico_responsavel, motivo_rejeicao)', { count: 'exact' });
   return { data: data ?? [], error, count: count ?? 0 };
 }
 
@@ -476,6 +480,10 @@ export async function render() {
 
   const state = { page: 1, limit: 200, filters: {}, data: [], viewMode: 'grid' };
 
+  // Persisted view mode
+  const savedView = storage.get('pendencias_view', 'grid');
+  if (savedView === 'kanban' || savedView === 'grid') state.viewMode = savedView;
+
   // Helper: captura filtros dos inputs
   const captureFilters = () => {
     const f = {
@@ -495,7 +503,7 @@ export async function render() {
     return f;
   };
   
-  // Default: últimos 7 dias
+  // Try to restore saved filters, otherwise default: últimos 7 dias
   const toYMD = (d) => {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -510,11 +518,28 @@ export async function render() {
   const iniEl = document.getElementById('fDataIni');
   const fimEl = document.getElementById('fDataFim');
   const presetEl = document.getElementById('fRangePreset');
-  if (iniEl) iniEl.value = iniStr;
-  if (fimEl) fimEl.value = fimStr;
-  if (presetEl) presetEl.value = 'ultimos_7';
-  state.filters.data_ini = iniStr;
-  state.filters.data_fim = fimStr;
+  const savedFilters = storage.get('pendencias_filters', null);
+  if (savedFilters && typeof savedFilters === 'object') {
+    // Restore inputs
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el != null && val != null) el.value = String(val); };
+    setVal('fStatus', savedFilters.status || '');
+    setVal('fTipo', savedFilters.tipo || '');
+    setVal('fModulo', savedFilters.modulo_id || '');
+    setVal('fTecnico', savedFilters.tecnico || '');
+    if (iniEl) iniEl.value = savedFilters.data_ini || '';
+    if (fimEl) fimEl.value = savedFilters.data_fim || '';
+    const clienteNome = (savedFilters.cliente_id && clienteMap[savedFilters.cliente_id]) ? clienteMap[savedFilters.cliente_id] : (savedFilters.cliente_like || '');
+    setVal('fCliente', clienteNome);
+    state.filters = savedFilters;
+  } else {
+    if (iniEl) iniEl.value = iniStr;
+    if (fimEl) fimEl.value = fimStr;
+    if (presetEl) presetEl.value = 'ultimos_7';
+    state.filters.data_ini = iniStr;
+    state.filters.data_fim = fimStr;
+    // Persist defaults with long TTL (30 days)
+    storage.set('pendencias_filters', { data_ini: iniStr, data_fim: fimStr }, 30 * 24 * 60 * 60 * 1000);
+  }
 
   const renderViewArea = () => {
     const area = document.getElementById('viewArea');
@@ -598,6 +623,8 @@ export async function render() {
   document.getElementById('applyFilters').addEventListener('click', () => {
     state.filters = captureFilters();
     state.page = 1;
+    // Persist filters (30 days)
+    storage.set('pendencias_filters', state.filters, 30 * 24 * 60 * 60 * 1000);
     debouncedApply();
   });
   document.getElementById('clearFilters').addEventListener('click', () => {
@@ -614,12 +641,14 @@ export async function render() {
     // Reset lógico mantendo “últimos 7 dias”
     state.filters = { data_ini: ini, data_fim: fim };
     state.page = 1;
+    storage.set('pendencias_filters', state.filters, 30 * 24 * 60 * 60 * 1000);
     debouncedApply();
   });
 
   // Alternar Grid/Kanban
   document.getElementById('toggleView').addEventListener('click', () => {
     state.viewMode = state.viewMode === 'grid' ? 'kanban' : 'grid';
+    storage.set('pendencias_view', state.viewMode, 30 * 24 * 60 * 60 * 1000);
     renderViewArea();
     apply();
   });
@@ -790,6 +819,7 @@ export async function render() {
   const updateFilters = debounce(() => {
     state.filters = captureFilters();
     state.page = 1;
+    storage.set('pendencias_filters', state.filters, 30 * 24 * 60 * 60 * 1000);
     debouncedApply();
   }, 250);
   ['fStatus','fTipo','fModulo','fCliente','fTecnico','fDataIni','fDataFim'].forEach(id => {
@@ -854,6 +884,7 @@ export async function render() {
     state.filters.data_ini = ini;
     state.filters.data_fim = fim;
     state.page = 1;
+    storage.set('pendencias_filters', state.filters, 30 * 24 * 60 * 60 * 1000);
     debouncedApply();
   });
 
@@ -1495,7 +1526,7 @@ export async function render() {
     }
   };
 
-  bindGridEvents();
+  renderViewArea();
   apply();
 }
 

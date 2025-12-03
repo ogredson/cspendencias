@@ -5,7 +5,7 @@ import { session } from './utils/session.js';
 const routes = {
   '#/dashboard': async () => (await import('./modules/dashboard.js')).render(),
   '#/pendencias': async () => (await import('./modules/pendencias.js')).render(),
-  '#/modulos': async () => (await import('./modules/modulos.js')).render(),
+  '#/modulos': async () => renderModulosProtected(),
   '#/relatorios': async () => (await import('./modules/relatorios.js')).render(),
   '#/config': async () => renderConfigProtected(),
   '#/pendencia': async () => (await import('./modules/pendencia_detalhes.js')).render(),
@@ -141,6 +141,21 @@ async function renderConfigProtected() {
       <div class="card">
         <h3>Acesso restrito</h3>
         <div class="hint">Somente o usuário Adm pode ver Configurações.</div>
+      </div>
+    `;
+  }
+}
+async function renderModulosProtected() {
+  const s = session.get();
+  if (s?.funcao === 'Adm') {
+    return (await import('./modules/modulos.js')).render();
+  }
+  const v = document.getElementById('view');
+  if (v) {
+    v.innerHTML = `
+      <div class="card">
+        <h3>Acesso restrito</h3>
+        <div class="hint">Somente o usuário Adm pode ver Módulos.</div>
       </div>
     `;
   }
