@@ -43,7 +43,7 @@ function rowHtml(p) {
       <td>${daysSince(p.data_relato)}</td>
       <td>${formatDateBr(p.data_relato)}</td>
       <td>
-        <button class="btn success" data-act="res">Resolvido</button>
+        <button class="btn success" data-act="res">Resolver</button>
         <button class="btn info" data-act="clone">Clonar</button>
         <button class="btn os" data-act="os">O.S.</button>
         <button class="btn light-warning" data-act="edit">Editar</button>
@@ -1108,6 +1108,7 @@ export async function render() {
             const sol = fd.get('solucao_orientacao') || null;
           
             const usuario = session.get()?.nome || triUser?.tecnico_responsavel || triUser?.tecnico_relato || '—';
+            await supabase.from('pendencia_triagem').update({ tecnico_responsavel: usuario }).eq('pendencia_id', id);
             await supabase.from('pendencias').update({ status: 'Resolvido', solucao_orientacao: sol }).eq('id', id);
             await supabase.from('pendencia_historicos').insert({
               pendencia_id: id, acao: 'Pendência resolvida', usuario,

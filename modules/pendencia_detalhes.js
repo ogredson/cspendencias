@@ -261,7 +261,12 @@ const fmt = (dt) => formatDateTimeBr(dt);
             <tbody>
               <tr>
                 <th>Cliente:</th>
-                <td>${(clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome ?? pend?.cliente_id ?? ''}</td>
+                <td>
+                  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <span>${(clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome ?? pend?.cliente_id ?? ''}</span>
+                    <button class="btn await" id="btnAguardarCliente">Aguardar Cliente</button>
+                  </div>
+                </td>
               </tr>
               <tr>
                 <th>Módulo/Release:</th>
@@ -272,8 +277,17 @@ const fmt = (dt) => formatDateTimeBr(dt);
                 <td>${pend?.tipo ?? '—'}</td>
               </tr>
               <tr>
-                <th>Técnico:</th>
-                <td>${tri?.tecnico_responsavel ?? tri?.tecnico_relato ?? '—'}</td>
+                <th>Técnico Responsável:</th>
+                <td>
+                  <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                    <span>${tri?.tecnico_responsavel || tri?.tecnico_relato || '—'}</span>
+                    <button class="btn primary" id="btnAnalise">Aceitar Análise</button>
+                    <button class="btn success" id="btnAceitar">Aceitar Resolução</button>
+                    <button class="btn danger" id="btnRejeitar">Rejeitar</button>
+                    <button class="btn success" id="btnResolvido">Resolver</button>
+                    <button type="button" class="btn warning" id="btnNotifyTech">Notificar Responsável</button>
+                  </div>
+                </td>
               </tr>
               <tr>
                 <th>Prioridade:</th>
@@ -286,11 +300,11 @@ const fmt = (dt) => formatDateTimeBr(dt);
             </tbody>
           </table>
 
-          <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+          <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
             ${pend?.link_trello ? `<a class="btn" href="${pend.link_trello}" target="_blank" rel="noopener">Abrir no Trello</a>` : ''}
             <button type="button" class="btn trello" id="btnTrello">Gerar Card Trello</button>
             ${pend?.link_trello ? `<button class="btn" id="btnVerCard">Ver Card Trello</button>` : ''}
-            <button type="button" class="btn warning" id="btnNotifyTech">Notificar Responsável</button>
+            <button class="btn test" id="btnTestes">Enviar para Testes</button>
           </div>
         </div>
 
@@ -299,18 +313,11 @@ const fmt = (dt) => formatDateTimeBr(dt);
           <div><b>Técnico do Relato:</b> ${tri?.tecnico_relato ?? ''}</div>
           <div class="field">
             <label>Técnico de Triagem</label>
-            <div style="display:flex; gap:8px; align-items:center;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
               <select id="triagemSel" class="input" style="flex:1"><option value="">Selecione...</option>${triagemSel}</select>
               <button type="button" class="btn warning" id="btnDesignar">Designar para triagem</button>
               <button type="button" class="btn warning" id="btnNotifyTriagem">Notificar Técnico</button>
             </div>
-          </div>
-          <div class="toolbar" style="margin-top:8px">
-            <button class="btn primary" id="btnAnalise">Aceitar Análise</button>
-            <button class="btn success" id="btnAceitar">Aceitar Resolução</button>
-            <button class="btn test" id="btnTestes">Enviar para Testes</button>
-            <button class="btn await" id="btnAguardarCliente">Aguardar Cliente</button>
-            <button class="btn danger" id="btnRejeitar">Rejeitar</button>
           </div>
         </div>
         <details class="card" id="anexosCard" style="margin-top:8px"${hasAnexos ? ' open' : ''}>
@@ -384,6 +391,32 @@ const fmt = (dt) => formatDateTimeBr(dt);
       </div>
     </div>
   `;
+
+  const role = session.get()?.funcao || '';
+  const me = session.get()?.nome || '';
+  const isGestor = ['Adm','Supervisor','Gerente'].includes(String(role));
+  const statusAwait = String(pend?.status || '') === 'Aguardando Aceite';
+  const isResp = String(tri?.tecnico_responsavel || '').toLowerCase() === String(me).toLowerCase();
+  const isAwaitingMe = statusAwait && String(tri?.tecnico_triagem || '').toLowerCase() === String(me).toLowerCase();
+  const canAnalise = isGestor || (statusAwait && isAwaitingMe);
+  const canAceitar = isGestor || (statusAwait && isAwaitingMe);
+  const canRejeitar = isGestor || (statusAwait && isAwaitingMe);
+  const canResolver = isGestor || (statusAwait && (isAwaitingMe || isResp));
+  const disableMap = {
+    btnAnalise: canAnalise,
+    btnAceitar: canAceitar,
+    btnRejeitar: canRejeitar,
+    btnResolvido: canResolver,
+  };
+  Object.entries(disableMap).forEach(([id, can]) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.disabled = !can;
+      if (!can) el.title = statusAwait
+        ? (id === 'btnResolvido' ? 'Ação permitida ao técnico aguardando aceite ou responsável (ou gestores).' : 'Ação permitida ao técnico aguardando aceite (ou gestores).')
+        : 'Ação restrita a gestores (Adm, Supervisor, Gerente).';
+    }
+  });
 
   // Preselecionar triagista com atual ou usuário logado
   const sel = document.getElementById('triagemSel');
@@ -648,10 +681,12 @@ const fmt = (dt) => formatDateTimeBr(dt);
   });
 
   document.getElementById('btnAnalise').addEventListener('click', async () => {
+    if (!canAnalise) { alert(statusAwait ? 'Ação permitida ao técnico aguardando aceite (ou gestores).' : 'Ação restrita a gestores.'); return; }
     const selVal = document.getElementById('triagemSel').value;
     if (!selVal) { alert('Defina o Técnico de Triagem antes de aceitar análise.'); return; }
+    const actor = tri?.tecnico_triagem || tri?.tecnico_responsavel || selVal;
     const resp = selVal;
-    const ok = await confirmDialog(`Você está prestes a aceitar a análise da pendência ${id} por ${resp}.`);
+    const ok = await confirmDialog(`Você está prestes a aceitar a análise da pendência ${id} por ${actor}.`);
     if (!ok) return;
     // Aceitar análise: define responsável e data de aceite
     const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_triagem: tri?.tecnico_triagem || resp, tecnico_responsavel: resp, data_aceite: new Date().toISOString() });
@@ -673,10 +708,12 @@ const fmt = (dt) => formatDateTimeBr(dt);
   });
 
   document.getElementById('btnAceitar').addEventListener('click', async () => {
+    if (!canAceitar) { alert(statusAwait ? 'Ação permitida ao técnico aguardando aceite (ou gestores).' : 'Ação restrita a gestores.'); return; }
     const selVal = document.getElementById('triagemSel').value;
     if (!selVal) { alert('Defina o Técnico de Triagem antes de aceitar resolução.'); return; }
+    const actor = tri?.tecnico_triagem || tri?.tecnico_responsavel || selVal;
     const resp = selVal;
-    const ok = await confirmDialog(`Você está prestes a aceitar a resolução da pendência ${id} por ${resp}.`);
+    const ok = await confirmDialog(`Você está prestes a aceitar a resolução da pendência ${id} por ${actor}.`);
     if (!ok) return;
     const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_responsavel: resp, data_aceite: new Date().toISOString() });
     if (e1) { alert('Erro aceite: ' + e1.message); return; }
@@ -701,7 +738,8 @@ const fmt = (dt) => formatDateTimeBr(dt);
     const selVal = document.getElementById('triagemSel').value;
     if (!selVal) { alert('Defina o Técnico de Triagem antes de enviar para testes.'); return; }
     const tester = selVal;
-    const ok = await confirmDialog(`Você está prestes a enviar a pendência ${id} para testes por ${tester}.`);
+    const actor = tri?.tecnico_triagem || session.get()?.nome || tester;
+    const ok = await confirmDialog(`Você está prestes a enviar a pendência ${id} para testes por ${actor}.`);
     if (!ok) return;
     const { error: e1 } = await supabase.from('pendencias').update({ status: 'Em Teste' }).eq('id', id);
     if (e1) { alert('Erro status: ' + e1.message); return; }
@@ -717,12 +755,13 @@ const fmt = (dt) => formatDateTimeBr(dt);
   });
 
   document.getElementById('btnRejeitar').addEventListener('click', async () => {
-    const triSel = document.getElementById('triagemSel');
-    const triResp = tri?.tecnico_responsavel || '';
+    if (!canRejeitar) { alert(statusAwait ? 'Ação permitida ao técnico aguardando aceite (ou gestores).' : 'Ação restrita a gestores.'); return; }
+    const statusAwait = String(pend?.status || '') === 'Aguardando Aceite';
+    const me = session.get()?.nome || '';
     const triTri = tri?.tecnico_triagem || '';
-    const selVal = triSel ? (triSel.value || '') : '';
-    const rejeitante = triResp || triTri || selVal;
-    if (!rejeitante) { alert('Selecione o Técnico no box de triagem para rejeitar.'); return; }
+    const triResp = tri?.tecnico_responsavel || '';
+    const rejeitante = statusAwait ? (triTri || me) : me; // prioridade: aguardando aceite -> técnico de triagem; caso contrário -> responsável logado
+    if (!rejeitante) { alert('Usuário atual inválido para rejeição.'); return; }
     const pid = formatPendId(id);
     const ok = await confirmDialog(`${rejeitante} Você está prestes a rejeitar a pendência ${pid}.`);
     if (!ok) return;
@@ -743,26 +782,11 @@ const fmt = (dt) => formatDateTimeBr(dt);
   document.getElementById('btnAguardarCliente').addEventListener('click', async () => {
     const selVal = document.getElementById('triagemSel').value;
     if (!selVal) { alert('Defina o Técnico de Triagem antes de marcar como Aguardando o Cliente.'); return; }
-    const ok = await confirmDialog(`Você está prestes a marcar a pendência ${id} como 'Aguardando o Cliente' por ${selVal}.`);
+    const actor = tri?.tecnico_triagem || session.get()?.nome || selVal;
+    const ok = await confirmDialog(`Você está prestes a marcar a pendência ${id} como 'Aguardando o Cliente' por ${actor}.`);
     if (!ok) return;
-    // Atualiza técnico responsável na triagem
-    const { error: e1 } = await saveTriagemNoConflict(supabase, id, { tecnico_responsavel: selVal, data_aceite: tri?.data_aceite || new Date().toISOString() });
-    if (e1) { alert('Erro responsável: ' + e1.message); return; }
-    // Atualiza status e técnico atual na pendência
-    const { error: e2 } = await supabase.from('pendencias').update({
-      status: 'Aguardando o Cliente'
-    }).eq('id', id);
+    const { error: e2 } = await supabase.from('pendencias').update({ status: 'Aguardando o Cliente' }).eq('id', id);
     if (e2) { alert('Erro status: ' + e2.message); return; }
-    // Histórico da mudança de responsável
-    await supabase.from('pendencia_historicos').insert({
-      pendencia_id: id,
-      acao: 'Pendência marcada para aguardar cliente',
-      usuario: session.get()?.nome || selVal,
-      campo_alterado: 'tecnico_responsavel',
-      valor_anterior: tri?.tecnico_responsavel ?? null,
-      valor_novo: selVal
-    });
-    // Histórico do status alterado
     await supabase.from('pendencia_historicos').insert({
       pendencia_id: id,
       acao: 'Status alterado para Aguardando o Cliente',
@@ -772,6 +796,50 @@ const fmt = (dt) => formatDateTimeBr(dt);
       valor_novo: 'Aguardando o Cliente'
     });
     render();
+  });
+
+  // Resolvido: mesma funcionalidade do grid
+  document.getElementById('btnResolvido').addEventListener('click', async () => {
+    if (!canResolver) { alert(statusAwait ? 'Ação permitida ao técnico aguardando aceite ou responsável (ou gestores).' : 'Ação restrita a gestores.'); return; }
+    const titulo = String(pend?.descricao || '').trim();
+    const modal = openModal(`
+      <div class="card">
+        <h3>Marcar como Resolvido</h3>
+        <form id="resolveFormDet">
+          <div class="field">
+            <label>Solução/Orientação</label>
+            <textarea name="solucao_orientacao" class="input" rows="6" placeholder="Descreva a solução ou orientação aplicada..."></textarea>
+          </div>
+          <div class="toolbar" style="justify-content:flex-end">
+            <button class="btn" type="button" id="cancelResolveDet">Cancelar</button>
+            <button class="btn success" type="submit">Salvar e Resolver</button>
+          </div>
+        </form>
+      </div>
+    `);
+    const cancelBtn = modal.querySelector('#cancelResolveDet');
+    if (cancelBtn && modal.closeModal) cancelBtn.addEventListener('click', () => modal.closeModal());
+    const form = modal.querySelector('#resolveFormDet');
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const ok = await confirmDialog(`Confirmar resolução da pendência ${formatPendId(id)}${titulo ? ` • ${titulo}` : ''}?`);
+      if (!ok) return;
+      const fd = new FormData(form);
+      const sol = fd.get('solucao_orientacao') || null;
+      const usuario = session.get()?.nome || tri?.tecnico_responsavel || tri?.tecnico_relato || '—';
+      await saveTriagemNoConflict(supabase, id, { tecnico_responsavel: usuario });
+      await supabase.from('pendencias').update({ status: 'Resolvido', solucao_orientacao: sol }).eq('id', id);
+      await supabase.from('pendencia_historicos').insert({
+        pendencia_id: id,
+        acao: 'Pendência resolvida',
+        usuario,
+        campo_alterado: 'status',
+        valor_anterior: pend?.status ?? null,
+        valor_novo: 'Resolvido'
+      });
+      if (modal.closeModal) modal.closeModal();
+      render();
+    });
   });
 
   // Botão Ordem de Serviço movido para o Grid

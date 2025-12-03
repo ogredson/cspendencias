@@ -42,15 +42,23 @@ body {
 .brand { display: flex; align-items: center; gap: 12px; font-weight: 600; }
 .brand .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--color-primary); box-shadow: var(--shadow); }
 .user-actions { display: flex; align-items: center; gap: 8px; }
-.btn { padding: 8px 12px; border: 1px solid #1f2937; background: #0b1220; color: var(--text); border-radius: 8px; cursor: pointer; }
-.btn.primary { background: var(--color-primary); border-color: var(--color-primary); color: white; }
-.btn.success { background: var(--color-success); border-color: var(--color-success); color: white; }
-.btn.danger { background: var(--color-danger); border-color: var(--color-danger); color: white; }
-.btn.warning { background: var(--color-warning); border-color: var(--color-warning); color: #1b1003; }
-.btn.test { background: #A78BFA; border-color: #A78BFA; color: #1f1633; }
-.btn.await { background: #14B8A6; border-color: #14B8A6; color: #ffffff; }
+.btn { padding: 6px 10px; border: 1px solid #1f2937; background: #0b1220; color: var(--text); border-radius: 6px; cursor: pointer; }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; filter: saturate(0.7) brightness(0.95); }
+.btn.primary { background: var(--color-primary); border: none; color: white; }
+.btn.primary:disabled { opacity: 0.55; }
+.btn.success { background: var(--color-success); border: none; color: white; }
+.btn.success:disabled { opacity: 0.55; }
+.btn.danger { background: var(--color-danger); border: none; color: white; }
+.btn.danger:disabled { opacity: 0.55; }
+.btn.warning { background: var(--color-warning); border: none; color: #1b1003; }
+.btn.warning:disabled { opacity: 0.55; }
+.btn.test { background: #A78BFA; border: none; color: #1f1633; }
+.btn.test:disabled { opacity: 0.55; }
+.btn.await { background: #14B8A6; border: none; color: #ffffff; }
+.btn.await:disabled { opacity: 0.55; }
 /* Trello action button */
-.btn.trello { background: #00B8D9; border-color: #00B8D9; color: #ffffff; }
+.btn.trello { background: #00B8D9; border: none; color: #ffffff; }
+.btn.trello:disabled { opacity: 0.55; }
 /* Ensure light theme override wins over generic light button styles */
 :root[data-theme="light"] .btn.trello { background: #00B8D9 !important; border-color: #00B8D9 !important; color: #ffffff !important; }
 

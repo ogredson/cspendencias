@@ -44,6 +44,10 @@ export function renderAuth() {
       if (error) throw error;
       if (!data) { msg.textContent = 'Email ou senha inválidos, ou usuário inativo.'; return; }
       session.set({ usuario_id: data.id, nome: data.nome, email: data.email, funcao: data.funcao });
+      const userEl = document.getElementById('userName');
+      if (userEl) userEl.textContent = data.nome || '';
+      const cfgLink = document.querySelector('#nav a[data-route="#/config"]');
+      if (cfgLink) cfgLink.style.display = (data.funcao === 'Adm') ? '' : 'none';
       location.hash = '#/dashboard';
     } catch (err) {
       msg.textContent = 'Erro: ' + err.message;

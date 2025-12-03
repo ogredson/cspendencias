@@ -46,6 +46,10 @@ export function initAppShell(mount) {
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     const { session } = await import('../utils/session.js');
     session.clear();
+    const el = document.getElementById('userName');
+    if (el) el.textContent = '';
+    const cfgLink = document.querySelector('#nav a[data-route="#/config"]');
+    if (cfgLink) cfgLink.style.display = 'none';
     location.hash = '#/login';
   });
 
