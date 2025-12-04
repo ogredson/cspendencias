@@ -16,11 +16,6 @@ function gridHtml() {
     </div>
     <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
       <input id="cliSearch" class="input" placeholder="Pesquisar cliente…" />
-      <select id="cliPageSize" class="input">
-        <option value="20">20</option>
-        <option value="50">50</option>
-        <option value="100">100</option>
-      </select>
     </div>
     <div style="height:calc(100vh - 320px); overflow:auto;">
       <table class="table">
@@ -86,13 +81,10 @@ export async function render() {
   const saved = storage.get('clientes_filters', null);
   if (saved && typeof saved === 'object') {
     state.term = saved.term || '';
-    state.limit = saved.limit || 20;
     state.page = 1;
   }
   const searchEl = document.getElementById('cliSearch');
-  const sizeEl = document.getElementById('cliPageSize');
   if (searchEl) searchEl.value = state.term;
-  if (sizeEl) sizeEl.value = String(state.limit);
 
   const apply = async () => {
     const { data, count } = await fetchClientes(state.term, state.page, state.limit);
@@ -128,16 +120,9 @@ export async function render() {
     storage.set('clientes_filters', { term: state.term, limit: state.limit }, 30 * 24 * 60 * 60 * 1000);
     debouncedApply();
   });
-  if (sizeEl) sizeEl.addEventListener('change', () => {
-    state.limit = parseInt(sizeEl.value, 10) || 20;
-    state.page = 1;
-    storage.set('clientes_filters', { term: state.term, limit: state.limit }, 30 * 24 * 60 * 60 * 1000);
-    debouncedApply();
-  });
   const prevBtn = document.getElementById('cliPrev');
   const nextBtn = document.getElementById('cliNext');
   if (prevBtn) prevBtn.addEventListener('click', () => { state.page = Math.max(1, state.page - 1); apply(); });
   if (nextBtn) nextBtn.addEventListener('click', () => { state.page += 1; apply(); });
   apply();
 }
-

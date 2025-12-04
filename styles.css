@@ -319,3 +319,5 @@ textarea { min-height: 80px; }
   outline: 2px solid rgba(59,130,246,0.8);
   outline-offset: 2px;
 }
+.table tbody tr:nth-child(odd) { background: rgba(255,255,255,0.02); }
+:root[data-theme="light"] .table tbody tr:nth-child(odd) { background: #f9fafb; }
