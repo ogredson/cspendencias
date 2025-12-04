@@ -14,6 +14,7 @@ export function initAppShell(mount) {
         <nav class="nav" id="nav">
           <a href="#/dashboard" data-route="#/dashboard">Dashboard</a>
           <a href="#/pendencias" data-route="#/pendencias">Pendências</a>
+          <a href="#/clientes" data-route="#/clientes">Clientes</a>
           <a href="#/modulos" data-route="#/modulos">Módulos</a>
           <a href="#/relatorios" data-route="#/relatorios">Relatórios</a>
           <a href="#/config" data-route="#/config">Configurações</a>

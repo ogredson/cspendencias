@@ -5,6 +5,7 @@ import { session } from './utils/session.js';
 const routes = {
   '#/dashboard': async () => (await import('./modules/dashboard.js')).render(),
   '#/pendencias': async () => (await import('./modules/pendencias.js')).render(),
+  '#/clientes': async () => (await import('./modules/clientes.js')).render(),
   '#/modulos': async () => renderModulosProtected(),
   '#/relatorios': async () => (await import('./modules/relatorios.js')).render(),
   '#/config': async () => renderConfigProtected(),
