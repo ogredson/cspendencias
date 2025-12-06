@@ -14,5 +14,33 @@
     <!-- Carregamento opcional de segredos locais (não versionado). Se o arquivo não existir, é ignorado. -->
     <script src="config.local.js"></script>
     <script type="module" src="app.js"></script>
+    <script defer src="https://app.fastbots.ai/embed.js" data-bot-id="cm91tt2e80c6gs5k7ia7eksub"></script>
+    <script>
+      (function(){
+        try {
+          window.addEventListener('error', function(e){
+            try {
+              var msg = String(e && e.message || '');
+              var file = String(e && e.filename || '');
+              if (msg.indexOf('AuthClient') >= 0 && file.indexOf('wrapper.mjs') >= 0) {
+                if (typeof e.preventDefault === 'function') e.preventDefault();
+                return false;
+              }
+            } catch(_) {}
+          }, true);
+          window.addEventListener('unhandledrejection', function(e){
+            try {
+              var r = e && e.reason;
+              var msg = String((r && (r.message || r)) || '');
+              var stack = String(r && r.stack || '');
+              if (msg.indexOf('AuthClient') >= 0 || stack.indexOf('wrapper.mjs') >= 0) {
+                if (typeof e.preventDefault === 'function') e.preventDefault();
+                return false;
+              }
+            } catch(_) {}
+          });
+        } catch(_) {}
+      })();
+    </script>
   </body>
 </html>
