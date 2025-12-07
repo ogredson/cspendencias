@@ -317,7 +317,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
             <label>Técnico de Triagem</label>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
               <select id="triagemSel" class="input" style="flex:1"><option value="">Selecione...</option>${triagemSel}</select>
-              <button type="button" class="btn warning" id="btnDesignar">Designar Técnico</button>
+              <button type="button" class="btn primary" id="btnDesignar">Designar Técnico</button>
               <button type="button" class="btn warning" id="btnNotifyTriagem">Notificar Técnico</button>
             </div>
           </div>
