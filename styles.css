@@ -81,8 +81,7 @@ body {
 }
 
 /* Corrige contraste dos botões no tema claro sem afetar botões de destaque */
-/* Regra genérica do tema claro: exclui .light-warning */
-:root[data-theme="light"] .btn:not(.primary):not(.success):not(.danger):not(.warning):not(.test):not(.await):not(.info):not(.light-warning):not(.os) {
+:root[data-theme="light"] .btn:not(.primary):not(.success):not(.danger):not(.warning):not(.test):not(.await):not(.info):not(.light-warning) {
   background: #ffffff;
   border-color: #e5e7eb;
   color: var(--text);
@@ -221,7 +220,7 @@ textarea { min-height: 80px; }
 }
 /* Botão amarelo claro (tema escuro) */
 .btn.light-warning {
-  background-color: #fff59d; /* amarelo claro */
+  background-color: #fff59d;
   border-color: #f59e0b;
   color: #111827;
 }
@@ -233,7 +232,7 @@ textarea { min-height: 80px; }
 
 /* Botão amarelo claro (tema claro) */
 :root[data-theme="light"] button.btn.light-warning {
-  background-color: #fff59d; /* amarelo claro */
+  background-color: #fff59d;
   border-color: #f59e0b;
   color: #111827;
 }
