@@ -1459,61 +1459,103 @@ export async function render() {
 
           const printBtn = modal.querySelector('#osImprimir');
           if (printBtn) printBtn.addEventListener('click', () => {
+            // Formatação auxiliar para horário (HH:mm:ss)
+            const two = (n) => String(n).padStart(2, '0');
+            const formatTimeBr = (dt) => {
+              try {
+                const d = new Date(dt);
+                if (isNaN(d.getTime())) return '—';
+                return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;
+              } catch { return '—'; }
+            };
+            const horaInicio = pend?.data_relato ? formatTimeBr(pend.data_relato) : '—';
+            const dataPrevista = pend?.previsao_conclusao ? formatDateBr(pend.previsao_conclusao) : '—';
+            const dataConclusao = (pend?.data_conclusao) ? formatDateBr(pend.data_conclusao) : (status === 'Resolvido' ? prevValue : '—');
+            const horaTermino = (pend?.data_conclusao) ? formatTimeBr(pend.data_conclusao) : '—';
+
+            // Dados de cabeçalho da empresa, se disponíveis em window.__COMPANY__
+            const company = (typeof window !== 'undefined' && window.__COMPANY__) ? window.__COMPANY__ : null;
+            const logoUrl = company?.logo_url || '';
+            const companyName = company?.nome || '';
+            const companyPhone = company?.telefone || '';
+            const companyAddr = company?.endereco || '';
+            const companyCnpj = company?.cnpj || '';
+
             const css = `
-              @page { margin: 18mm; }
+              @page { margin: 12mm; }
               body { font-family: Segoe UI, Arial, sans-serif; color: #000; }
-              .os-header { text-align: center; margin-bottom: 10mm; }
-              .os-title { font-size: 20px; font-weight: 700; border-bottom: 2px solid #000; display: inline-block; padding: 4px 12px; }
+              .os-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6mm; }
+              .os-logo { max-height: 28mm; }
+              .os-company { text-align: right; font-size: 12px; line-height: 1.35; }
+              .os-title { text-align: center; font-size: 20px; font-weight: 700; margin: 2mm 0 6mm; }
+              .os-title .num { font-weight: 700; }
               .os-section { margin-bottom: 6mm; }
+              .label { font-weight: 700; margin-bottom: 2mm; }
               table { width: 100%; border-collapse: collapse; }
               th, td { border: 1px solid #000; padding: 6px 8px; vertical-align: top; }
               th { background: #f2f2f2; font-weight: 700; text-align: left; }
-              .os-meta-table th { width: 160px; }
-              .box { border: 1px solid #000; padding: 10px; min-height: 28mm; }
+              .grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+              .box { border: 1px solid #000; padding: 8px; min-height: 24mm; }
               .pre { white-space: pre-wrap; }
               .sign { margin-top: 10mm; }
               .sign-row { display: flex; align-items: center; gap: 10mm; margin-top: 8mm; }
               .sign-line { border-top: 1px solid #000; flex: 1; }
               .sign-label { width: 60mm; text-align: center; }
             `;
+            const companyBlock = (companyName || companyPhone || companyAddr || companyCnpj || logoUrl) ? `
+              <div class="os-top">
+                <div class="os-brand">${logoUrl ? `<img src="${logoUrl}" class="os-logo" />` : ''}</div>
+                <div class="os-company">
+                  ${companyName ? `${companyName}<br/>` : ''}
+                  ${companyPhone ? `Fone: ${companyPhone}<br/>` : ''}
+                  ${companyAddr ? `${companyAddr}<br/>` : ''}
+                  ${companyCnpj ? `CNPJ: ${companyCnpj}` : ''}
+                </div>
+              </div>
+            ` : '';
             const html = `
               <html><head><title>${fileTitle}</title><style>${css}</style></head>
               <body>
-                <div class="os-header">
-                  <div class="os-title">Ordem de Serviço Nº ${pid}</div>
+                ${companyBlock}
+                <div class="os-title">Ordem de serviço Nº <span class="num">${pid}</span></div>
+                <div class="grid-two os-section">
+                  <div>
+                    <div class="label">Cliente</div>
+                    <div class="box">${sanitizeText(clienteNome)}</div>
+                  </div>
+                  <div>
+                    <table>
+                      <tbody>
+                        <tr>
+                          <th>Número da OS</th><td>${pid}</td>
+                          <th>Data de entrada</th><td>${dataAbertura}</td>
+                          <th>Hora Início</th><td>${horaInicio}</td>
+                        </tr>
+                        <tr>
+                          <th>Data prevista</th><td>${dataPrevista}</td>
+                          <th>Data de conclusão</th><td>${dataConclusao}</td>
+                          <th>Hora de Término</th><td>${horaTermino}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
+
                 <div class="os-section">
-                  <table class="os-meta-table">
-                    <tbody>
-                      <tr>
-                        <th>Número da OS</th><td>${pid}</td>
-                        <th>Data Abertura</th><td>${dataAbertura}</td>
-                        <th>${prevLabel}</th><td>${prevValue}</td>
-                      </tr>
-                      <tr>
-                        <th>Cliente</th><td colspan="5">${sanitizeText(clienteNome)}</td>
-                      </tr>
-                      <tr>
-                        <th>Tipo de Serviço</th><td colspan="2">${sanitizeText(tipo)}</td>
-                        <th>Técnico</th><td colspan="2">${sanitizeText(tecnico)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <div class="label">Tipo de Serviço</div>
+                  <div class="box">${sanitizeText(String(titulo || '').toUpperCase())}</div>
                 </div>
+
                 <div class="os-section">
-                  <table>
-                    <tbody>
-                      <tr><th>Título</th><td class="pre">${sanitizeText(titulo)}</td></tr>
-                    </tbody>
-                  </table>
+                  <div class="label">Sistema / Versão do sistema / Banco de Dados / Outros</div>
+                  <div class="box">${sanitizeText(moduloPair)}</div>
                 </div>
+
                 <div class="os-section">
-                  <table>
-                    <tbody>
-                      ${extra}
-                    </tbody>
-                  </table>
+                  <div class="label">Descrição do Serviço a ser feito</div>
+                  <div class="box pre">${sanitizeText(pend?.informacoes_adicionais || pend?.situacao || titulo || '—')}</div>
                 </div>
+
                 <div class="sign">
                   <table>
                     <tbody>
