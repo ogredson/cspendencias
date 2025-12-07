@@ -1,0 +1,84 @@
+Resumo para Treinamento — Sistema Gerenciador de Pendências
+
+Objetivo
+- Organizar, acompanhar e concluir demandas de clientes e internas de forma clara e rastreável.
+- Garantir que cada pendência tenha responsável, histórico e desfecho.
+
+Como lançar uma pendência
+- Acesse a tela “Pendências” e clique em “Novo”.
+- Preencha: Cliente, Tipo (Programação, Suporte, Implantação, Atualização ou Outro), Prioridade, Título/Descrição.
+- Informe o Técnico do Relato e a Data do relato; se souber, informe a previsão de conclusão.
+- Para Programação/Suporte, descreva Situação, Etapas de reprodução, Frequência e Informações úteis.
+- Para Implantação/Atualização, informe Escopo, Objetivo/Impacto e Requisitos específicos.
+- Opcional: vincule um card do Trello para acompanhamento externo.
+- Salve para criar a pendência.
+
+Triagem (Designar Técnico)
+- Escolha o Técnico de Triagem e clique em “Designar Técnico”.
+- O status muda para “Aguardando Aceite”.
+- Por que existe: define quem faz a avaliação inicial e evita pendências sem dono.
+
+Aguardando Aceite
+- O técnico designado decide aceitar a Análise (entender o problema) ou aceitar a Resolução (executar a solução).
+- Regras de acesso: só o técnico aguardando aceite (ou gestores) pode acionar “Aceitar Análise”, “Aceitar Resolução” e “Rejeitar”.
+- Benefício: dá clareza de responsabilidade e próximo passo.
+
+Aceitar Análise
+- O técnico assume a avaliação; o status muda para “Em Análise”.
+- O histórico registra quem aceitou e quando.
+- Objetivo: entender a causa, planejar e detalhar o que será feito.
+
+Aceitar Resolução
+- Define o Técnico Responsável; o status muda para “Em Andamento”.
+- O histórico registra a mudança de status.
+- Objetivo: iniciar a execução da solução (correções, ajustes, implantação).
+
+Rejeitar
+- O técnico responsável/aguardando aceite informa o motivo; o status muda para “Rejeitada”.
+- Por que existe: registra formalmente que a demanda não seguirá e o motivo.
+
+Enviar para Testes
+- Após implementar a solução, clique em “Enviar para Testes” para mudar o status para “Em Teste”.
+- Não altera o responsável; foca na validação.
+- Objetivo: confirmar que a solução realmente resolve.
+
+Aguardar o Cliente
+- Use quando faltam informações, aprovações ou testes do cliente.
+- Muda o status para “Aguardando o Cliente” sem trocar o responsável.
+- Objetivo: sinalizar dependências externas e pausar o fluxo corretamente.
+
+Resolver
+- Clique em “Resolver” e descreva a Solução/Orientação (texto livre). 
+- O status muda para “Resolvido” e o histórico registra quem finalizou e quando.
+- Objetivo: concluir e documentar como foi resolvido.
+
+Integração com Trello (opcional)
+- “Gerar Card Trello” cria um card com título e descrição; o link fica salvo na pendência.
+- “Ver Card Trello” mostra informações do card (lista, board, descrição) ou abre no Trello.
+- Benefício: acompanhar tarefas em quadros visuais quando a equipe usa Trello.
+
+Consultas e controle gerencial
+- Grid de Pendências: filtros por Status, Tipo, Módulo, Cliente e Técnico.
+- Técnico com posição: filtrar por “Relato”, “Triagem”, “Responsável” ou “Qualquer”.
+- Período: escolha datas ou presets (Hoje, Semana, Mês atual etc.).
+- Visualização: Grid ou Kanban, com persistência de filtros entre telas.
+- Histórico por pendência: tabela paginada com todas as ações (quem, o quê, quando).
+- Dashboard: visão rápida de pendências aguardando aceite e últimos registros.
+- Clientes > Chamados: na lista de clientes, botão “Chamados” abre uma janela com atendimentos (iniciado por, finalizado por, solicitado em, finalizado em, relato do operador, tipo de atendimento, tipo de fechamento, observação). 
+- Filtro de período por “solicitado em” (padrão: mês atual) e linhas com cores alternadas para leitura.
+
+Permissões
+- Gestores (Adm, Supervisor, Gerente): acesso total aos botões.
+- Demais usuários: podem agir quando são responsáveis ou quando a pendência está aguardando aceite deles na triagem.
+- Botões desabilitados ficam visualmente atenuados, indicando falta de acesso.
+
+Boas práticas
+- Registre informações completas na criação; isso acelera análise e resolução.
+- Use anexos e “Solução/Orientação” para documentar.
+- Mantenha o status atualizado; cada mudança gera histórico e facilita gestão.
+- Quando necessário, use “Aguardar o Cliente” para sinalizar dependências externas.
+- Utilize o Trello quando o time já trabalha com quadros e cartões.
+
+Encerramento do fluxo
+- Uma pendência está realmente concluída quando está “Resolvido”, com solução registrada e, quando aplicável, validada em testes.
+- O histórico guarda toda a trilha de ações para auditoria e aprendizado.
