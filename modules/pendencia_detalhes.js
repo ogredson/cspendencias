@@ -1,5 +1,6 @@
 // topo: imports
 import { viewMount, confirmDialog, openModal } from './ui.js';
+import { openChamadosModal } from './clientes.js';
 import { TRELLO_KEY, TRELLO_TOKEN, WHATSAPP_API_TOKEN } from '../config.js';
 import { storage } from '../utils/storage.js';
 import { getSupabase } from '../supabaseClient.js';
@@ -265,6 +266,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
                   <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                     <span>${(clientes || []).find(c => c.id_cliente === pend?.cliente_id)?.nome ?? pend?.cliente_id ?? ''}</span>
                     <button class="btn await" id="btnAguardarCliente">Aguardar Cliente</button>
+                    <button class="btn info" id="btnChamados">Chamados</button>
                   </div>
                 </td>
               </tr>
@@ -824,6 +826,13 @@ const fmt = (dt) => formatDateTimeBr(dt);
       valor_novo: 'Aguardando o Cliente'
     });
     render();
+  });
+
+  const btnChamados = document.getElementById('btnChamados');
+  if (btnChamados) btnChamados.addEventListener('click', () => {
+    const cid = pend?.cliente_id;
+    if (!cid) { alert('Cliente não definido para esta pendência.'); return; }
+    openChamadosModal(String(cid));
   });
 
   // Resolvido: mesma funcionalidade do grid
