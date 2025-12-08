@@ -37,12 +37,12 @@ function rowHtml(p) {
     <tr data-id="${p.id}">
       <td><input type="checkbox" class="sel" /></td>
       <td><a href="#/pendencia?id=${p.id}" class="link">${p.id}</a></td>
-      <td title="${tituloAttr}">${clienteNome}</td>
-      <td>${moduloPair}</td>
-      <td>${p.tipo}</td>
-      <td class="col-tech-relato">${triRelato ?? ''}</td>
-      <td class="col-tech-triagem">${Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_triagem ?? '') : (p.pendencia_triagem?.tecnico_triagem ?? '')}</td>
-      <td class="col-tech-resp">${triResp ?? ''}</td>
+      <td class="clip" title="${tituloAttr}">${clienteNome}</td>
+      <td class="clip">${moduloPair}</td>
+      <td class="clip">${p.tipo}</td>
+      <td class="col-tech-relato clip">${triRelato ?? ''}</td>
+      <td class="col-tech-triagem clip">${Array.isArray(p.pendencia_triagem) ? (p.pendencia_triagem[0]?.tecnico_triagem ?? '') : (p.pendencia_triagem?.tecnico_triagem ?? '')}</td>
+      <td class="col-tech-resp clip">${triResp ?? ''}</td>
       <td><span class="prio ${p.prioridade}" aria-label="${p.prioridade}">${p.prioridade}</span></td>
       <td>
         <span class="status ${p.status}" aria-label="${p.status}" ${statusStyle} ${p.status === 'Rejeitada' && motivoRej ? `title="Motivo: ${sanitizeText(motivoRej)}"` : ''}>${p.status}</span>
@@ -50,10 +50,10 @@ function rowHtml(p) {
       </td>
       <td>${daysSince(p.data_relato)}</td>
       <td>${formatDateBr(p.data_relato)}</td>
-      <td>
-        <button class="btn success" data-act="res">Resolver</button>
-        <button class="btn info" data-act="clone">Clonar</button>
-        <button class="btn os" data-act="os">O.S.</button>
+      <td class="actions">
+        <button class="btn success icon" data-act="res" title="Resolver" aria-label="Resolver"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></button>
+        <button class="btn info icon" data-act="clone" title="Clonar" aria-label="Clonar"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><rect x="4" y="4" width="11" height="11" rx="2"/></svg></button>
+        <button class="btn os icon" data-act="os" title="Ordem de Serviço" aria-label="Ordem de Serviço"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>
         <button class="btn light-warning" data-act="edit" aria-label="Editar"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5l4 4L7 21H3v-4L16.5 3.5z"/></svg></button>
         <button class="btn danger" data-act="del" ${isGestor ? '' : 'disabled title="Apenas gestores (Adm, Supervisor, Gerente) podem excluir"'} aria-label="Excluir"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>
       </td>
@@ -413,7 +413,22 @@ function gridHtml() {
       </div>
     </div>
     <div id="virtWrap" style="height:calc(100vh - 320px); overflow:auto; scrollbar-gutter: stable both-edges;">
-      <table id="pTable" class="table">
+      <table id="pTable" class="table compact">
+        <colgroup>
+          <col style="width:32px" />
+          <col style="width:72px" />
+          <col style="width:22%" />
+          <col style="width:16%" />
+          <col style="width:10%" />
+          <col style="width:11%" />
+          <col style="width:11%" />
+          <col style="width:11%" />
+          <col style="width:8%" />
+          <col style="width:11%" />
+          <col style="width:6%" />
+          <col style="width:9%" />
+          <col style="width:148px" />
+        </colgroup>
         <thead>
           <tr>
             <th><input type="checkbox" id="selAll" /></th>

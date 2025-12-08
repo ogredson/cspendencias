@@ -126,6 +126,19 @@ body {
 .table th, .table td { padding: 10px; border-bottom: 1px solid #1f2937; text-align: left; }
 :root[data-theme="light"] .table th, :root[data-theme="light"] .table td { border-bottom-color: #e5e7eb; }
 .table th { color: var(--muted); font-weight: 600; }
+.table.compact { font-size: 13px; }
+.table.compact th, .table.compact td { padding: 8px; }
+#pTable { table-layout: fixed; }
+#pTable th, #pTable td { white-space: nowrap; }
+#pTable td.clip { overflow: hidden; text-overflow: ellipsis; }
+#pTable td.actions { white-space: nowrap; }
+#pTable td.actions .btn { padding: 4px 8px; font-size: 12px; }
+
+#cliTable { table-layout: fixed; }
+#cliTable th, #cliTable td { white-space: nowrap; }
+#cliTable td.clip { overflow: hidden; text-overflow: ellipsis; }
+#cliTable td.actions { white-space: nowrap; }
+#cliTable td.actions .btn { padding: 4px 8px; font-size: 12px; }
 .table .status { padding: 4px 8px; border-radius: 999px; font-size: 12px; display: inline-block; font-weight: 600; }
 .table .empty { text-align: center; color: var(--muted); padding: 14px; }
 .table tr.status-change { transition: background 0.2s ease; }
@@ -322,3 +335,5 @@ textarea { min-height: 80px; }
 }
 .table tbody tr:nth-child(odd) { background: rgba(255,255,255,0.02); }
 :root[data-theme="light"] .table tbody tr:nth-child(odd) { background: #f9fafb; }
+.btn.icon { padding: 4px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; }
+.btn.icon svg { display: block; }

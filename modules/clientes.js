@@ -18,7 +18,22 @@ function gridHtml() {
       <input id="cliSearch" class="input" placeholder="Pesquisar cliente…" />
     </div>
     <div style="height:calc(100vh - 320px); overflow:auto; scrollbar-gutter: stable both-edges;">
-      <table class="table">
+      <table id="cliTable" class="table compact">
+        <colgroup>
+          <col style="width:72px" />
+          <col style="width:14%" />
+          <col style="width:12%" />
+          <col style="width:14%" />
+          <col style="width:5%" />
+          <col style="width:6%" />
+          <col style="width:7%" />
+          <col style="width:4%" />
+          <col style="width:10%" />
+          <col style="width:10%" />
+          <col style="width:6%" />
+          <col style="width:6%" />
+          <col style="width:90px" />
+        </colgroup>
         <thead>
           <tr>
             <th>ID</th>
@@ -96,18 +111,18 @@ export async function render() {
       tbody.innerHTML = state.data.map(c => `
         <tr data-id="${sanitizeText(String(c.id_cliente ?? ''))}">
           <td>${sanitizeText(String(c.id_cliente ?? ''))}</td>
-          <td>${sanitizeText(c.nome ?? '')}</td>
-          <td>${sanitizeText(c.email ?? '')}</td>
-          <td>${sanitizeText(c.endereco ?? '')}</td>
+          <td class="clip">${sanitizeText(c.nome ?? '')}</td>
+          <td class="clip">${sanitizeText(c.email ?? '')}</td>
+          <td class="clip">${sanitizeText(c.endereco ?? '')}</td>
           <td>${sanitizeText(String(c.numero ?? ''))}</td>
-          <td>${sanitizeText(c.complemento ?? '')}</td>
+          <td class="clip">${sanitizeText(c.complemento ?? '')}</td>
           <td>${sanitizeText(c.cep ?? '')}</td>
           <td>${sanitizeText(c.uf ?? '')}</td>
-          <td>${sanitizeText(c.cidade ?? '')}</td>
-          <td>${sanitizeText(c.contatos ?? '')}</td>
+          <td class="clip">${sanitizeText(c.cidade ?? '')}</td>
+          <td class="clip">${sanitizeText(c.contatos ?? '')}</td>
           <td>${sanitizeText(c.telefone ?? '')}</td>
           <td>${sanitizeText(c.celular ?? '')}</td>
-          <td><button class="btn info" data-act="chamados" data-id="${sanitizeText(String(c.id_cliente ?? ''))}">Chamados</button></td>
+          <td class="actions"><button class="btn info" data-act="chamados" data-id="${sanitizeText(String(c.id_cliente ?? ''))}">Chamados</button></td>
         </tr>
       `).join('');
     }
