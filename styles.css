@@ -56,6 +56,9 @@ body {
 .btn.test:disabled { opacity: 0.55; }
 .btn.await { background: #14B8A6; border: none; color: #ffffff; }
 .btn.await:disabled { opacity: 0.55; }
+/* Destaque específico para o botão Menu */
+#toggleSidebar { background: var(--color-primary); border: none; color: #ffffff; font-weight: 600; }
+:root[data-theme="light"] #toggleSidebar { background: var(--color-primary); border-color: var(--color-primary); color: #ffffff; }
 /* Trello action button */
 .btn.trello { background: #00B8D9; border: none; color: #ffffff; }
 .btn.trello:disabled { opacity: 0.55; }
