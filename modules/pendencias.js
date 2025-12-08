@@ -949,9 +949,10 @@ export async function render() {
     const pTable = document.querySelector('#pTable');
     if (pTable) {
       pTable.addEventListener('click', async (e) => {
-        const act = e.target.getAttribute('data-act');
+        const actEl = e.target.closest('[data-act]');
+        const act = actEl && actEl.getAttribute('data-act');
         if (!act) return;
-        const tr = e.target.closest('tr');
+        const tr = actEl.closest('tr');
         const id = tr.getAttribute('data-id');
         const supabase = getSupabase();
 
