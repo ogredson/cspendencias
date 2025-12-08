@@ -31,6 +31,8 @@ function rowHtml(p) {
   const moduloPair = (moduloMap[p.modulo_id] ?? p.modulo_id ?? '') + (p.release_versao ? '/' + p.release_versao : '');
   const role = session.get()?.funcao || '';
   const isGestor = ['Adm','Supervisor','Gerente'].includes(String(role));
+  const whiteStatuses = ['Aguardando Aceite','Resolvido','Triagem','Em Teste','Em Analise'];
+  const statusStyle = whiteStatuses.includes(String(p.status)) ? 'style="color:#fff"' : '';
   return `
     <tr data-id="${p.id}">
       <td><input type="checkbox" class="sel" /></td>
@@ -43,7 +45,7 @@ function rowHtml(p) {
       <td class="col-tech-resp">${triResp ?? ''}</td>
       <td><span class="prio ${p.prioridade}" aria-label="${p.prioridade}">${p.prioridade}</span></td>
       <td>
-        <span class="status ${p.status}" aria-label="${p.status}" ${p.status === 'Rejeitada' && motivoRej ? `title="Motivo: ${sanitizeText(motivoRej)}"` : ''}>${p.status}</span>
+        <span class="status ${p.status}" aria-label="${p.status}" ${statusStyle} ${p.status === 'Rejeitada' && motivoRej ? `title="Motivo: ${sanitizeText(motivoRej)}"` : ''}>${p.status}</span>
         ${p.status === 'Rejeitada' && motivoRej ? `<div class="hint">Motivo: ${sanitizeText(motivoRej)}</div>` : ''}
       </td>
       <td>${daysSince(p.data_relato)}</td>
@@ -52,8 +54,8 @@ function rowHtml(p) {
         <button class="btn success" data-act="res">Resolver</button>
         <button class="btn info" data-act="clone">Clonar</button>
         <button class="btn os" data-act="os">O.S.</button>
-        <button class="btn light-warning" data-act="edit">Editar</button>
-        <button class="btn danger" data-act="del" ${isGestor ? '' : 'disabled title="Apenas gestores (Adm, Supervisor, Gerente) podem excluir"'}>Excluir</button>
+        <button class="btn light-warning" data-act="edit" aria-label="Editar"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5l4 4L7 21H3v-4L16.5 3.5z"/></svg></button>
+        <button class="btn danger" data-act="del" ${isGestor ? '' : 'disabled title="Apenas gestores (Adm, Supervisor, Gerente) podem excluir"'} aria-label="Excluir"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>
       </td>
     </tr>
   `;
@@ -410,7 +412,7 @@ function gridHtml() {
         <button class="btn" id="nextPage">Próxima</button>
       </div>
     </div>
-    <div id="virtWrap" style="height:calc(100vh - 320px); overflow:auto;">
+    <div id="virtWrap" style="height:calc(100vh - 320px); overflow:auto; scrollbar-gutter: stable both-edges;">
       <table id="pTable" class="table">
         <thead>
           <tr>
@@ -585,23 +587,34 @@ export async function render() {
     }
   };
 
+  let __rowHeight = 44;
+  let __rowHeightMeasured = false;
   const renderVirtual = () => {
     const wrap = document.getElementById('virtWrap');
     const tbody = document.querySelector('#pTable tbody');
-    const spacer = document.getElementById('spacer');
-    const rowHeight = 44;
     const total = state.data.length;
-    const visible = Math.ceil(wrap.clientHeight / rowHeight) + 6;
-    const start = Math.max(0, Math.floor(wrap.scrollTop / rowHeight));
+    const visible = Math.ceil(wrap.clientHeight / __rowHeight) + 6;
+    const start = Math.max(0, Math.floor(wrap.scrollTop / __rowHeight));
     const end = Math.min(total, start + visible);
     const slice = state.data.slice(start, end);
-    const topPad = start * rowHeight;
-    const bottomPad = (total - end) * rowHeight;
+    const topPad = start * __rowHeight;
+    const bottomPad = (total - end) * __rowHeight;
     tbody.innerHTML = [
       `<tr class="filler" style="height:${topPad}px"></tr>`,
       slice.map(rowHtml).join(''),
       `<tr class="filler" style="height:${bottomPad}px"></tr>`
     ].join('');
+    if (!__rowHeightMeasured) {
+      const probe = tbody.querySelector('tr:not(.filler)');
+      const h = probe ? Math.round(probe.getBoundingClientRect().height) : 0;
+      if (h && Math.abs(h - __rowHeight) > 1) {
+        __rowHeight = h;
+        __rowHeightMeasured = true;
+        const t = setTimeout(() => { renderVirtual(); }, 0);
+      } else {
+        __rowHeightMeasured = true;
+      }
+    }
   };
 
   const renderKanban = () => {

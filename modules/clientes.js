@@ -17,7 +17,7 @@ function gridHtml() {
     <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
       <input id="cliSearch" class="input" placeholder="Pesquisar cliente…" />
     </div>
-    <div style="height:calc(100vh - 320px); overflow:auto;">
+    <div style="height:calc(100vh - 320px); overflow:auto; scrollbar-gutter: stable both-edges;">
       <table class="table">
         <thead>
           <tr>

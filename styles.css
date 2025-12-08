@@ -302,6 +302,8 @@ textarea { min-height: 80px; }
 .section-head.warning { background: rgba(245,158,11,0.18); border-left: 4px solid var(--color-warning); }
 .section-head.neutral { background: rgba(107,114,128,0.18); border-left: 4px solid var(--color-neutral); }
 .section-head.info { background: rgba(167,139,250,0.18); border-left: 4px solid #A78BFA; }
+
+.solution-card { background: #F0FDF4; border-left: 4px solid var(--color-success); color: #064e3b; }
 /* Detalhes: largura fixa da coluna de rótulos */
 .details-table th {
   width: 200px;

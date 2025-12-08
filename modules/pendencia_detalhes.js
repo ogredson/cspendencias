@@ -378,7 +378,7 @@ const fmt = (dt) => formatDateTimeBr(dt);
       </div>
       <div class="col-6">
         ${detalhesHtml}
-        <div class="card" style="border-left:4px solid #10B981; background:#F0FDF4;">
+        <div class="card solution-card">
           <div class="section-head success">💡 Solução / Orientação</div>
           <div style="white-space:pre-wrap;">${pend?.solucao_orientacao ? pend.solucao_orientacao : '<span style="opacity:0.7">Não informado</span>'}</div>
         </div>
