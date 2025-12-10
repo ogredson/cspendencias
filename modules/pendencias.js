@@ -1214,7 +1214,7 @@ export async function render() {
           const setVal = (sel, val) => { if (sel && val != null) sel.value = String(val); };
           setVal(modal.querySelector('input[name="cliente_nome"]'), clienteMap[pend?.cliente_id] ?? '');
           setVal(modSel, pend?.modulo_id ?? '');
-          setVal(modal.querySelector('input[name="release_versao"]'), '');
+          setVal(modal.querySelector('input[name="release_versao"]'), pend?.release_versao ?? '');
           setVal(modal.querySelector('select[name="tipo"]'), pend?.tipo ?? '');
           setVal(modal.querySelector('select[name="prioridade"]'), pend?.prioridade ?? '');
           setVal(tecSel, tri?.tecnico_relato ?? '');
@@ -1224,15 +1224,15 @@ export async function render() {
           if (dr) dr.value = toYMD(new Date());
           // Limpar campos não clonados
           setVal(modal.querySelector('input[name="previsao_conclusao"]'), '');
-          setVal(modal.querySelector('input[name="descricao"]'), '');
+          setVal(modal.querySelector('input[name="descricao"]'), pend?.descricao ?? '');
           setVal(modal.querySelector('input[name="link_trello"]'), '');
-          modal.querySelectorAll('textarea[name="situacao"]').forEach(el => el.value = '');
-          modal.querySelectorAll('textarea[name="etapas_reproducao"]').forEach(el => el.value = '');
-          modal.querySelectorAll('input[name="frequencia"]').forEach(el => el.value = '');
-          modal.querySelectorAll('textarea[name="informacoes_adicionais"]').forEach(el => el.value = '');
-          modal.querySelectorAll('textarea[name="escopo"]').forEach(el => el.value = '');
-          modal.querySelectorAll('textarea[name="objetivo"]').forEach(el => el.value = '');
-          modal.querySelectorAll('textarea[name="recursos_necessarios"]').forEach(el => el.value = '');
+          modal.querySelectorAll('textarea[name="situacao"]').forEach(el => el.value = pend?.situacao ?? '');
+          modal.querySelectorAll('textarea[name="etapas_reproducao"]').forEach(el => el.value = pend?.etapas_reproducao ?? '');
+          modal.querySelectorAll('input[name="frequencia"]').forEach(el => el.value = pend?.frequencia ?? '');
+          modal.querySelectorAll('textarea[name="informacoes_adicionais"]').forEach(el => el.value = pend?.informacoes_adicionais ?? '');
+          modal.querySelectorAll('textarea[name="escopo"]').forEach(el => el.value = pend?.escopo ?? '');
+          modal.querySelectorAll('textarea[name="objetivo"]').forEach(el => el.value = pend?.objetivo ?? '');
+          modal.querySelectorAll('textarea[name="recursos_necessarios"]').forEach(el => el.value = pend?.recursos_necessarios ?? '');
           const solEl = modal.querySelector('textarea[name="solucao_orientacao"]'); if (solEl) solEl.value = '';
           // Tabs e fechamento
           const tabs = modal.querySelectorAll('.tab');
