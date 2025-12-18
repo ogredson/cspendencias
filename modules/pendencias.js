@@ -85,6 +85,9 @@ async function fetchPendencias(filters = {}, page = 1, limit = 20) {
     .from('pendencias')
     .select('*, pendencia_triagem(tecnico_relato, tecnico_triagem, tecnico_responsavel, motivo_rejeicao)')
     .order('created_at', { ascending: false });
+  if (filters.id) {
+    q = q.filter('id::text', 'ilike', `%${filters.id}%`);
+  }
   if (filters.status) q = q.eq('status', filters.status);
   if (filters.tipo) q = q.eq('tipo', filters.tipo);
   if (filters.modulo_id) q = q.eq('modulo_id', Number(filters.modulo_id));
@@ -352,6 +355,7 @@ function filtersHtml(clientes, usuarios = [], modulos = []) {
   return `
   <div class="card">
     <div class="filters">
+      <input id="fId" class="input" placeholder="ID" style="width:100px" />
       <select id="fStatus" class="input">
         <option value="">Status</option>
         <option>Triagem</option>
@@ -512,6 +516,7 @@ export async function render() {
   // Helper: captura filtros dos inputs
   const captureFilters = () => {
     const f = {
+      id: sanitizeText(document.getElementById('fId').value) || undefined,
       status: sanitizeText(document.getElementById('fStatus').value) || undefined,
       tipo: sanitizeText(document.getElementById('fTipo').value) || undefined,
       modulo_id: sanitizeText(document.getElementById('fModulo').value) || undefined,
@@ -548,6 +553,7 @@ export async function render() {
   if (savedFilters && typeof savedFilters === 'object') {
     // Restore inputs
     const setVal = (id, val) => { const el = document.getElementById(id); if (el != null && val != null) el.value = String(val); };
+    setVal('fId', savedFilters.id || '');
     setVal('fStatus', savedFilters.status || '');
     setVal('fTipo', savedFilters.tipo || '');
     setVal('fModulo', savedFilters.modulo_id || '');
@@ -673,7 +679,7 @@ export async function render() {
   });
   document.getElementById('clearFilters').addEventListener('click', () => {
     // Reset visual
-    ['fStatus','fTipo','fModulo','fCliente','fTecnico','fTecPos'].forEach(id => {
+    ['fId','fStatus','fTipo','fModulo','fCliente','fTecnico','fTecPos'].forEach(id => {
       const el = document.getElementById(id); if (el) el.value = '';
     });
     const posEl = document.getElementById('fTecPos');
@@ -868,7 +874,7 @@ export async function render() {
     storage.set('pendencias_filters', state.filters, 30 * 24 * 60 * 60 * 1000);
     debouncedApply();
   }, 250);
-  ['fStatus','fTipo','fModulo','fCliente','fTecnico','fTecPos','fDataIni','fDataFim'].forEach(id => {
+  ['fId','fStatus','fTipo','fModulo','fCliente','fTecnico','fTecPos','fDataIni','fDataFim'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('change', updateFilters);
