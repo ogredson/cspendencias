@@ -751,10 +751,16 @@ export async function render() {
       const showImpl = tipo === 'Implantação';
       const showAtual = tipo === 'Atualizacao';
       const showOutro = tipo === 'Outro';
-      if (grpPS) { grpPS.style.display = showPS ? '' : 'none'; grpPS.open = showPS; }
-      if (grpImpl) { grpImpl.style.display = showImpl ? '' : 'none'; grpImpl.open = showImpl; }
-      if (grpAtual) { grpAtual.style.display = showAtual ? '' : 'none'; grpAtual.open = showAtual; }
-      if (grpOutro) { grpOutro.style.display = showOutro ? '' : 'none'; grpOutro.open = showOutro; }
+      const toggle = (el, show) => {
+        if (!el) return;
+        el.style.display = show ? '' : 'none';
+        if (show) el.open = true;
+        el.querySelectorAll('input, textarea, select').forEach(i => i.disabled = !show);
+      };
+      toggle(grpPS, showPS);
+      toggle(grpImpl, showImpl);
+      toggle(grpAtual, showAtual);
+      toggle(grpOutro, showOutro);
     };
     updateGroupsByType();
     const enforceReleaseRequired = () => {
@@ -1043,10 +1049,16 @@ export async function render() {
             const showImpl = tipo === 'Implantação';
             const showAtual = tipo === 'Atualizacao';
             const showOutro = tipo === 'Outro';
-            if (grpPS) { grpPS.style.display = showPS ? '' : 'none'; grpPS.open = showPS; }
-            if (grpImpl) { grpImpl.style.display = showImpl ? '' : 'none'; grpImpl.open = showImpl; }
-            if (grpAtual) { grpAtual.style.display = showAtual ? '' : 'none'; grpAtual.open = showAtual; }
-            if (grpOutro) { grpOutro.style.display = showOutro ? '' : 'none'; grpOutro.open = showOutro; }
+            const toggle = (el, show) => {
+              if (!el) return;
+              el.style.display = show ? '' : 'none';
+              if (show) el.open = true;
+              el.querySelectorAll('input, textarea, select').forEach(i => i.disabled = !show);
+            };
+            toggle(grpPS, showPS);
+            toggle(grpImpl, showImpl);
+            toggle(grpAtual, showAtual);
+            toggle(grpOutro, showOutro);
           };
           updateGroupsByType();
           const enforceReleaseRequired = () => {
@@ -1263,10 +1275,16 @@ export async function render() {
             const showImpl = tipo === 'Implantação';
             const showAtual = tipo === 'Atualizacao';
             const showOutro = tipo === 'Outro';
-            if (grpPS) { grpPS.style.display = showPS ? '' : 'none'; grpPS.open = showPS; }
-            if (grpImpl) { grpImpl.style.display = showImpl ? '' : 'none'; grpImpl.open = showImpl; }
-            if (grpAtual) { grpAtual.style.display = showAtual ? '' : 'none'; grpAtual.open = showAtual; }
-            if (grpOutro) { grpOutro.style.display = showOutro ? '' : 'none'; grpOutro.open = showOutro; }
+            const toggle = (el, show) => {
+              if (!el) return;
+              el.style.display = show ? '' : 'none';
+              if (show) el.open = true;
+              el.querySelectorAll('input, textarea, select').forEach(i => i.disabled = !show);
+            };
+            toggle(grpPS, showPS);
+            toggle(grpImpl, showImpl);
+            toggle(grpAtual, showAtual);
+            toggle(grpOutro, showOutro);
           };
           updateGroupsByType();
           const enforceReleaseRequiredClone = () => {
