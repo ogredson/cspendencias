@@ -1,0 +1,33 @@
+Com base na análise dos arquivos do projeto, aqui estão as tecnologias utilizadas:
+
+### **Frontend**
+*   **Linguagem:** JavaScript (Vanilla JS com ES Modules) - Não utiliza frameworks como React, Vue ou Angular. O código é modularizado e importado diretamente via navegador (`type="module"`).
+*   **Estilização:** CSS3 (Customizado/Nativo) - Utiliza um arquivo `styles.css` próprio, sem pré-processadores (SASS/LESS) ou frameworks CSS pesados (como Bootstrap ou Tailwind, embora possa haver estilos utilitários manuais).
+*   **Fonte:** Google Fonts (Inter).
+
+### **Backend & Dados (BaaS)**
+*   **Supabase:** Utilizado como backend principal.
+    *   **Banco de Dados:** PostgreSQL (gerenciado pelo Supabase).
+    *   **Autenticação:** Supabase Auth.
+    *   **SDK:** `@supabase/supabase-js` (versão 2.84.0) importado via CDN (jsDelivr).
+
+### **Integrações e Serviços Externos**
+*   **FastBots.ai:** Chatbot de IA integrado via script (`embed.js`).
+*   **Trello:** Referências a chaves de API indicam integração para vincular ou criar cards.
+*   **WhatsApp API:** Referências a token e estrutura de pastas (`api/whatsapp/`) indicam funcionalidades de envio de mensagens.
+
+### **Infraestrutura e Tooling**
+*   **Build System:** Script customizado (`build.mjs`) em Node.js para injetar variáveis de ambiente (como chaves de API) em um arquivo de configuração local (`config.local.js`), facilitando o deploy em plataformas como Vercel.
+*   **Hospedagem:** O projeto é estruturado como uma SPA (Single Page Application) estática, compatível com serviços como Vercel, Netlify ou GitHub Pages.
+
+Em resumo, é um projeto **SPA (Single Page Application)** leve, construído com **JavaScript puro** e apoiado fortemente no **Supabase** para toda a camada de dados e autenticação.
+
+toolName: view_folder
+c:\_working\Projetos\cspendencias
+toolName: view_files
+filePath: c:\_working\Projetos\cspendencias\index.html
+toolName: view_files
+status: success
+filePath: c:\_working\Projetos\cspendencias\supabaseClient.js
+toolName: view_files
+filePath: c:\_working\Projetos\cspendencias\build.mjs
